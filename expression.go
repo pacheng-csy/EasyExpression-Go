@@ -1,6 +1,9 @@
 package EasyExpression
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type match_Scope struct {
 	ChildrenExpressionString string
@@ -8,7 +11,7 @@ type match_Scope struct {
 	Status                   bool
 }
 
-type expression struct {
+type Expression struct {
 	//错误消息
 	ErrorMessgage string
 	//状态(标识表达式是否可以解析)
@@ -29,14 +32,14 @@ type expression struct {
 	Function     interface{}
 	FunctionName string
 	//子表达式
-	ExpressionChildren []expression
+	ExpressionChildren []Expression
 }
 
-func CreateExpression(expressionStr string) (*expression, error) {
+func CreateExpression(expressionStr string) (*Expression, error) {
 	if len(expressionStr) == 0 {
 		return nil, fmt.Errorf("表达式不能为空")
 	}
-	exp := expression{
+	exp := Expression{
 		SourceExpressionString: expressionStr,
 		DataString:             "",
 	}
@@ -51,7 +54,7 @@ func CreateExpression(expressionStr string) (*expression, error) {
 	return nil, fmt.Errorf(exp.ErrorMessgage)
 }
 
-func tryParse(exp *expression) bool {
+func tryParse(exp *Expression) bool {
 	parse(exp)
 	return true
 }
@@ -128,7 +131,7 @@ func SetMatchMode(currentChar byte, lastMode MatchMode) (matchMode MatchMode, en
 	}
 }
 
-func parse(exp *expression) {
+func parse(exp *Expression) {
 	lastBlock := Match_Mode_Unknown
 	for index := 0; index < len(exp.SourceExpressionString); index++ {
 		var matchScope match_Scope
@@ -158,7 +161,7 @@ func parse(exp *expression) {
 		case Match_Mode_RelationSymbol:
 			var relationSymbolStr = GetFullSymbol(exp.SourceExpressionString, index, mode)
 			//去除可能存在的空字符
-			var relationSymbol = ConvertOperator(relationSymbolStr.Replace(" ", ""))
+			var relationSymbol = ConvertOperator(strings.Replace(relationSymbolStr, " ", "", -1))
 			exp.Operators = append(exp.Operators, relationSymbol)
 			exp.ElementType = Element_Expression
 			//如果关系运算符为单字符，则索引+0，如果为多字符（<和=中间有空格，需要忽略掉），则跳过这段。eg: <；<=；<  =；
@@ -167,15 +170,15 @@ func parse(exp *expression) {
 			continue
 		case Match_Mode_LogicSymbol:
 			var logicSymbolStr = GetFullSymbol(exp.SourceExpressionString, index, mode)
-			var logicSymbol = ConvertOperator(logicSymbolStr.Replace(" ", ""))
+			var logicSymbol = ConvertOperator(strings.Replace(logicSymbolStr, " ", "", -1))
 			//因为! 既可以单独修饰一个数据，当作逻辑非，也可以与=联合修饰两个数据，当作不等于，所以此处需要进行二次判定。如果是!=，则此符号为关系运算符
-			exp.Operators.Add(logicSymbol)
+			exp.Operators = append(exp.Operators, logicSymbol)
 			exp.ElementType = Element_Expression
 			index += len(logicSymbolStr) - 1
 			lastBlock = mode
 			continue
 		case Match_Mode_ArithmeticSymbol:
-			var operatorSymbol = ConvertOperator(currentChar.ToString())
+			var operatorSymbol = ConvertOperator(fmt.Sprintf("%c", currentChar))
 			exp.Operators = append(exp.Operators, operatorSymbol)
 			exp.ElementType = Element_Expression
 			lastBlock = mode
