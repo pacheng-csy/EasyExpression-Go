@@ -159,9 +159,9 @@ func parse(exp *Expression) {
 			exp.Status = matchScope.Status
 			break
 		case Match_Mode_RelationSymbol:
-			var relationSymbolStr = GetFullSymbol(exp.SourceExpressionString, index, mode)
+			var relationSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
 			//去除可能存在的空字符
-			var relationSymbol = ConvertOperator(strings.Replace(relationSymbolStr, " ", "", -1))
+			var relationSymbol = convertOperator(strings.Replace(relationSymbolStr, " ", "", -1))
 			exp.Operators = append(exp.Operators, relationSymbol)
 			exp.ElementType = Element_Expression
 			//如果关系运算符为单字符，则索引+0，如果为多字符（<和=中间有空格，需要忽略掉），则跳过这段。eg: <；<=；<  =；
@@ -169,8 +169,8 @@ func parse(exp *Expression) {
 			lastBlock = mode
 			continue
 		case Match_Mode_LogicSymbol:
-			var logicSymbolStr = GetFullSymbol(exp.SourceExpressionString, index, mode)
-			var logicSymbol = ConvertOperator(strings.Replace(logicSymbolStr, " ", "", -1))
+			var logicSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
+			var logicSymbol = convertOperator(strings.Replace(logicSymbolStr, " ", "", -1))
 			//因为! 既可以单独修饰一个数据，当作逻辑非，也可以与=联合修饰两个数据，当作不等于，所以此处需要进行二次判定。如果是!=，则此符号为关系运算符
 			exp.Operators = append(exp.Operators, logicSymbol)
 			exp.ElementType = Element_Expression
@@ -178,7 +178,7 @@ func parse(exp *Expression) {
 			lastBlock = mode
 			continue
 		case Match_Mode_ArithmeticSymbol:
-			var operatorSymbol = ConvertOperator(fmt.Sprintf("%c", currentChar))
+			var operatorSymbol = convertOperator(fmt.Sprintf("%c", currentChar))
 			exp.Operators = append(exp.Operators, operatorSymbol)
 			exp.ElementType = Element_Expression
 			lastBlock = mode
@@ -195,7 +195,7 @@ func parse(exp *Expression) {
 			functionExp.ElementType = Element_Function
 			functionExp.FunctionType = executeType
 			functionExp.Function = function
-			functionExp.FunctionName = executeType.(string)
+			functionExp.FunctionName = executeType.String()
 			functionExp.SourceExpressionString = functionStr
 			functionExp.DataString = matchScope.ChildrenExpressionString
 
@@ -255,94 +255,237 @@ func parse(exp *Expression) {
 	}
 }
 
-func splitParamObject(srcString string)[]string{
-    var result []string
-    paramString := ""
-    areaLevel := 0;
-    for  i := 0; i < len(srcString); i++{
-        var currentChar = srcString[i];
-        //()或[]封闭空间内的参数分隔符 , 需要忽略，因为它属于子表达式范围，不用在本层级分析，只把它当作普通字符即可
-        switch currentChar{
-            case ',':
-                if len(paramString) != 0 && areaLevel == 0{
-                    result = append(result,paramString)
-                    paramString = ""
-                    continue
-                }
-                break
-            case '(':
-            case '[':
-                //封闭空间开始,提升层级
-                areaLevel++
-                break
-            case ')':
-            case ']':
-                //封闭空间结束,降低层级
-                areaLevel--
-                break
-            default:
-                break
-        }
-        paramString = fmt.Sprintf("%s%c",paramString,currentChar)
-    }
-    if len(paramString) != 0{
-        result = append(result,paramString)
-    }
-    return result;
+func splitParamObject(srcString string) []string {
+	var result []string
+	paramString := ""
+	areaLevel := 0
+	for i := 0; i < len(srcString); i++ {
+		var currentChar = srcString[i]
+		//()或[]封闭空间内的参数分隔符 , 需要忽略，因为它属于子表达式范围，不用在本层级分析，只把它当作普通字符即可
+		switch currentChar {
+		case ',':
+			if len(paramString) != 0 && areaLevel == 0 {
+				result = append(result, paramString)
+				paramString = ""
+				continue
+			}
+			break
+		case '(':
+		case '[':
+			//封闭空间开始,提升层级
+			areaLevel++
+			break
+		case ')':
+		case ']':
+			//封闭空间结束,降低层级
+			areaLevel--
+			break
+		default:
+			break
+		}
+		paramString = fmt.Sprintf("%s%c", paramString, currentChar)
+	}
+	if len(paramString) != 0 {
+		result = append(result, paramString)
+	}
+	return result
 }
 
-        func findEnd(startTag byte,endTag byte,exp string,index int)match_Scope{
-            result := match_Scope{
-                Status: true,
-                EndIndex: -1,
-                ChildrenExpressionString: "",
-            }
-            currentLevel := 0
-            expArray := []byte(exp)
-            for ; index < len(exp); index++{
-                var currentChar = expArray[index];
-                //跳过转义符及后面一个字符
-                if currentChar == '\\'{
-                    result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[index])
-                    index++
-                    result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[index])
-                    continue
-                }
-                // 第一次匹配到startTag不加层级，因为它的层级就是0
-                if currentChar == startTag{
-                    currentLevel++
-                    if currentLevel == 1{
-                        continue
-                    }
-                }else if currentChar == endTag{
-                    currentLevel--
-                }
-                // 层级相同且与结束标志一致，则返回结束标志索引
-                if currentLevel == 0 && currentChar == endTag{
-                    result.EndIndex = index
-                    break
-                }
-                result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,currentChar)
-            }
-            if result.EndIndex == -1{
-                result.Status = false;
-            }
-            return result
-        }
+func findEnd(startTag byte, endTag byte, exp string, index int) match_Scope {
+	result := match_Scope{
+		Status:                   true,
+		EndIndex:                 -1,
+		ChildrenExpressionString: "",
+	}
+	currentLevel := 0
+	expArray := []byte(exp)
+	for ; index < len(exp); index++ {
+		var currentChar = expArray[index]
+		//跳过转义符及后面一个字符
+		if currentChar == '\\' {
+			result.ChildrenExpressionString = fmt.Sprintf("%s%c", result.ChildrenExpressionString, expArray[index])
+			index++
+			result.ChildrenExpressionString = fmt.Sprintf("%s%c", result.ChildrenExpressionString, expArray[index])
+			continue
+		}
+		// 第一次匹配到startTag不加层级，因为它的层级就是0
+		if currentChar == startTag {
+			currentLevel++
+			if currentLevel == 1 {
+				continue
+			}
+		} else if currentChar == endTag {
+			currentLevel--
+		}
+		// 层级相同且与结束标志一致，则返回结束标志索引
+		if currentLevel == 0 && currentChar == endTag {
+			result.EndIndex = index
+			break
+		}
+		result.ChildrenExpressionString = fmt.Sprintf("%s%c", result.ChildrenExpressionString, currentChar)
+	}
+	if result.EndIndex == -1 {
+		result.Status = false
+	}
+	return result
+}
 
-        func findDataEnd(tag byte,exp string,index int)match_Scope{
-            result := match_Scope{
-                Status: true,
-                EndIndex: -1,
-                ChildrenExpressionString: "",
-            }
-            expArray := []byte(exp)
-            for  i := index + 1; i < len(exp); i++{
-                if (expArray[i] == tag){
-                    result.EndIndex = i
-                    break
-                }
-                result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[i])
-            }
-            return result
-        }
+func findDataEnd(tag byte, exp string, index int) match_Scope {
+	result := match_Scope{
+		Status:                   true,
+		EndIndex:                 -1,
+		ChildrenExpressionString: "",
+	}
+	expArray := []byte(exp)
+	for i := index + 1; i < len(exp); i++ {
+		if expArray[i] == tag {
+			result.EndIndex = i
+			break
+		}
+		result.ChildrenExpressionString = fmt.Sprintf("%s%c", result.ChildrenExpressionString, expArray[i])
+	}
+	return result
+}
+
+func convertOperator(currentChar string) Operator {
+	switch currentChar {
+	case "&":
+		return Operator_And
+	case "|":
+		return Operator_Or
+	case "!":
+		return Operator_Not
+	case "+":
+		return Operator_Plus
+	case "-":
+		//负号特殊,此处算作减号
+		return Operator_Subtract
+	case "*":
+		return Operator_Multiply
+	case "/":
+		return Operator_Divide
+	case "%":
+		return Operator_Mod
+	case ">":
+		return Operator_GreaterThan
+	case "<":
+		return Operator_LessThan
+	case "=":
+		return Operator_Equals
+	case "!=":
+		return Operator_UnEquals
+	case "<=":
+	case "=<":
+		return Operator_LessThanOrEquals
+	case ">=":
+	case "=>":
+		return Operator_GreaterThanOrEquals
+	}
+	return Operator_None
+}
+
+func getFullSymbol(exp string, startIndex int, matchMode MatchMode) string {
+	expArray := []byte(exp)
+	if startIndex == len(exp) {
+		return fmt.Sprintf("%c", expArray[len(exp)-1])
+	}
+	result := fmt.Sprintf("%c", exp[startIndex])
+	for i := startIndex + 1; i < len(exp); i++ {
+		if exp[i] == ' ' && i-startIndex == len(result) {
+			result = fmt.Sprintf("%s%c", result, expArray[i])
+			continue
+		}
+		mode, _ := SetMatchMode(exp[i], matchMode)
+		if mode == Match_Mode_RelationSymbol && matchMode == Match_Mode_RelationSymbol {
+			result = fmt.Sprintf("%s%c", result, expArray[i])
+			break
+		} else if mode == Match_Mode_LogicSymbol && expArray[startIndex] == '!' && matchMode == Match_Mode_LogicSymbol {
+			result = fmt.Sprintf("%s%c", result, expArray[i])
+			break
+		}
+		if mode == Match_Mode_Data {
+			break
+		}
+		matchMode = mode
+	}
+	return result
+}
+
+func GetFunctionType(key string) (executeType FunctionType, function interface{}) {
+	key = strings.ToLower(key)
+	switch key {
+	case "sum":
+		return Function_Sum, FormulaAction.Sum
+	case "avg":
+		return Function_Avg, FormulaAction.Avg
+	case "contains":
+		return Function_Contains, FormulaAction.Contains
+	case "excluding":
+		return Function_ContainsExcept, FormulaAction.Excluding
+	case "equals":
+		return Function_Equals, FormulaAction.Equals
+	case "startwith":
+		return Function_StartWith, FormulaAction.StartWith
+	case "endwith":
+		return Function_EndWith, FormulaAction.EndWith
+	case "different":
+		return Function_Different, FormulaAction.Different
+	case "round":
+		return Function_Round, FormulaAction.Round
+	case "edate":
+		return Function_EDate, FormulaAction.EDate
+	case "eodate":
+		return Function_EODate, FormulaAction.EODate
+	case "nowtime":
+		return Function_NowTime, FormulaAction.NowTime
+	case "timetostring":
+		return Function_TimeToString, FormulaAction.TimeToString
+	case "days":
+		return Function_Days, FormulaAction.Days
+	case "hours":
+		return Function_Hours, FormulaAction.Hours
+	case "minutes":
+		return Function_Minutes, FormulaAction.Minutes
+	case "seconds":
+		return Function_Seconds, FormulaAction.Seconds
+	case "millseconds":
+		return Function_MillSeconds, FormulaAction.MillSeconds
+	}
+	panic(key + " 函数未定义")
+}
+
+func GetFullData(exp string, startIndex int, matchMode MatchMode) (value string, mode MatchMode) {
+	expArray := []byte(exp)
+	if startIndex == len(exp) {
+		return fmt.Sprintf("%c", expArray[len(expArray)-1]), Match_Mode_Data
+	}
+	result := fmt.Sprintf("%c", expArray[startIndex])
+	for i := startIndex + 1; i < len(exp); i++ {
+		mode, _ := SetMatchMode(exp[i], matchMode)
+		switch mode {
+		case Match_Mode_Data:
+			result = fmt.Sprintf("%s%c", result, expArray[i])
+			matchMode = mode
+			continue
+		case Match_Mode_LogicSymbol:
+			return result, Match_Mode_LogicSymbol
+		case Match_Mode_ArithmeticSymbol:
+			return result, Match_Mode_ArithmeticSymbol
+		case Match_Mode_RelationSymbol:
+			return result, Match_Mode_RelationSymbol
+		case Match_Mode_Scope:
+			var matchScope = findEnd('(', ')', exp, i)
+			return matchScope.ChildrenExpressionString, Match_Mode_Scope
+		case Match_Mode_EscapeCharacter:
+			//跳过转义符及后面一个字符
+			result = fmt.Sprintf("%s%c", result, expArray[i])
+			result = fmt.Sprintf("%s%c", result, expArray[i+1])
+			i++
+			matchMode = mode
+			continue
+		default:
+			return result, Match_Mode_Data
+		}
+	}
+	return result, Match_Mode_Data
+}

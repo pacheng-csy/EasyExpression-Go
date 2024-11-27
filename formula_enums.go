@@ -49,11 +49,58 @@ const (
 	Function_Round          FunctionType = 13
 	Function_Days           FunctionType = 14
 	Function_Hours          FunctionType = 15
-	Function_Minutes        FunctionType = 15
-	Function_Seconds        FunctionType = 15
-	Function_MillSeconds    FunctionType = 15
-	Function_Customer       FunctionType = 15
+	Function_Minutes        FunctionType = 16
+	Function_Seconds        FunctionType = 17
+	Function_MillSeconds    FunctionType = 18
+	Function_Customer       FunctionType = 19
 )
+
+func (f FunctionType) String() string {
+	switch f {
+	case Function_None:
+		return "None"
+	case Function_Sum:
+		return "Sum"
+	case Function_Avg:
+		return "Avg"
+	case Function_Contains:
+		return "Contains"
+	case Function_ContainsExcept:
+		return "ContainsExcept"
+	case Function_Equals:
+		return "Equals"
+	case Function_StartWith:
+		return "StartWith"
+	case Function_EndWith:
+		return "EndWith"
+	case Function_Different:
+		return "Different"
+	case Function_EDate:
+		return "EDate"
+	case Function_EODate:
+		return "EODate"
+	case Function_NowTime:
+		return "NowTime"
+	case Function_TimeToString:
+		return "TimeToString"
+	case Function_Round:
+		return "Round"
+	case Function_Days:
+		return "Days"
+	case Function_Hours:
+		return "Hours"
+	case Function_Minutes:
+		return "Minutes"
+	case Function_Seconds:
+		return "Seconds"
+	case Function_MillSeconds:
+		return "MillSeconds"
+	case Function_Customer:
+		return "Customer"
+	default:
+		return ""
+	}
+}
 
 type MatchMode int
 
