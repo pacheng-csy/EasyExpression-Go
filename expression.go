@@ -141,7 +141,7 @@ func parse(exp *Expression) {
 		case Match_Mode_Scope:
 			if currentChar == endTag {
 				//'' 或者 "" 实际上应该认作数据类型
-				matchScope = FindEnd(currentChar, exp.SourceExpressionString, index)
+				matchScope = findDataEnd(currentChar, exp.SourceExpressionString, index)
 				tempStr := fmt.Sprintf("%c%s%c", currentChar, matchScope.ChildrenExpressionString, endTag)
 				var dataExp, err = CreateExpression(tempStr)
 				if err != nil {
@@ -154,7 +154,7 @@ func parse(exp *Expression) {
 				index = matchScope.EndIndex
 				continue
 			} else {
-				matchScope = FindEnd(currentChar, endTag, exp.SourceExpressionString, index)
+				matchScope = findEnd(currentChar, endTag, exp.SourceExpressionString, index)
 			}
 			exp.Status = matchScope.Status
 			break
@@ -184,12 +184,12 @@ func parse(exp *Expression) {
 			lastBlock = mode
 			continue
 		case Match_Mode_Function:
-			matchScope = FindEnd('[', endTag, exp.SourceExpressionString, index)
+			matchScope = findEnd('[', endTag, exp.SourceExpressionString, index)
 			//确定函数类型
 			var executeType, function = GetFunctionType(matchScope.ChildrenExpressionString)
 			functionStr := "[" + matchScope.ChildrenExpressionString + "]"
 			//如果是函数，则匹配函数内的表达式,eg: [sum](****)
-			matchScope = FindEnd('(', ')', exp.SourceExpressionString, matchScope.EndIndex+1)
+			matchScope = findEnd('(', ')', exp.SourceExpressionString, matchScope.EndIndex+1)
 			functionStr += "(" + matchScope.ChildrenExpressionString + ")"
 			functionExp, _ := CreateExpression(functionStr)
 			functionExp.ElementType = Element_Function
@@ -200,7 +200,7 @@ func parse(exp *Expression) {
 			functionExp.DataString = matchScope.ChildrenExpressionString
 
 			exp.ExpressionChildren = append(exp.ExpressionChildren, *functionExp)
-			var paramList = SplitParamObject(matchScope.ChildrenExpressionString)
+			var paramList = splitParamObject(matchScope.ChildrenExpressionString)
 			for _, v := range paramList {
 				paramExp, _ := CreateExpression(v)
 				functionExp.ExpressionChildren = append(functionExp.ExpressionChildren, *paramExp)
@@ -254,3 +254,95 @@ func parse(exp *Expression) {
 		lastBlock = mode
 	}
 }
+
+func splitParamObject(srcString string)[]string{
+    var result []string
+    paramString := ""
+    areaLevel := 0;
+    for  i := 0; i < len(srcString); i++{
+        var currentChar = srcString[i];
+        //()或[]封闭空间内的参数分隔符 , 需要忽略，因为它属于子表达式范围，不用在本层级分析，只把它当作普通字符即可
+        switch currentChar{
+            case ',':
+                if len(paramString) != 0 && areaLevel == 0{
+                    result = append(result,paramString)
+                    paramString = ""
+                    continue
+                }
+                break
+            case '(':
+            case '[':
+                //封闭空间开始,提升层级
+                areaLevel++
+                break
+            case ')':
+            case ']':
+                //封闭空间结束,降低层级
+                areaLevel--
+                break
+            default:
+                break
+        }
+        paramString = fmt.Sprintf("%s%c",paramString,currentChar)
+    }
+    if len(paramString) != 0{
+        result = append(result,paramString)
+    }
+    return result;
+}
+
+        func findEnd(startTag byte,endTag byte,exp string,index int)match_Scope{
+            result := match_Scope{
+                Status: true,
+                EndIndex: -1,
+                ChildrenExpressionString: "",
+            }
+            currentLevel := 0
+            expArray := []byte(exp)
+            for ; index < len(exp); index++{
+                var currentChar = expArray[index];
+                //跳过转义符及后面一个字符
+                if currentChar == '\\'{
+                    result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[index])
+                    index++
+                    result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[index])
+                    continue
+                }
+                // 第一次匹配到startTag不加层级，因为它的层级就是0
+                if currentChar == startTag{
+                    currentLevel++
+                    if currentLevel == 1{
+                        continue
+                    }
+                }else if currentChar == endTag{
+                    currentLevel--
+                }
+                // 层级相同且与结束标志一致，则返回结束标志索引
+                if currentLevel == 0 && currentChar == endTag{
+                    result.EndIndex = index
+                    break
+                }
+                result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,currentChar)
+            }
+            if result.EndIndex == -1{
+                result.Status = false;
+            }
+            return result
+        }
+
+        func findDataEnd(tag byte,exp string,index int)match_Scope{
+            result := match_Scope{
+                Status: true,
+                EndIndex: -1,
+                ChildrenExpressionString: "",
+            }
+            expArray := []byte(exp)
+            for  i := index + 1; i < len(exp); i++{
+                if (expArray[i] == tag){
+                    result.EndIndex = i
+                    break
+                }
+                result.ChildrenExpressionString = fmt.Sprintf("%s%c",result.ChildrenExpressionString,expArray[i])
+            }
+            return result
+        }
