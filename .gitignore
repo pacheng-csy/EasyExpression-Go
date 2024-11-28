@@ -24,7 +24,7 @@ go.work.sum
 # env file
 .env
 /.vs
-/ .idea
+/.idea
 .idea/EasyExpression-Go.iml
 .idea/modules.xml
 .idea/vcs.xml
