@@ -1,6 +1,9 @@
 package EasyExpression
 
-import "strconv"
+import (
+	"math"
+	"strconv"
+)
 
 type FormulaAction struct {
 }
@@ -30,9 +33,26 @@ func (f FormulaAction) Avg(values ...any) interface{} {
 	return result / float64(len(values))
 }
 func (f FormulaAction) Round(values ...any) interface{} {
-	result := float64(0)
-	//toddo
-	return result
+	v, ok := values[0].(float64)
+	if !ok {
+		temp, err := strconv.ParseFloat(values[0].(string), 64)
+		if err != nil {
+			panic("function round error: " + values[0].(string) + "not a number")
+		}
+		v = temp
+	}
+	accuracy, _ := strconv.ParseFloat(values[1].(string), 64)
+	mode, _ := strconv.ParseFloat(values[2].(string), 64)
+	var delta = 5 / math.Pow(10, accuracy+1)
+	switch mode {
+	case -1:
+		return f.CustomerRound(v-delta, accuracy)
+	case 0:
+		return f.CustomerRound(v, accuracy)
+	case 1:
+		return f.CustomerRound(v+delta, accuracy)
+	}
+	panic("round mode error")
 }
 
 /*-----------------Math---------------------------*/
