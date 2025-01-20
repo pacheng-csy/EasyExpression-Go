@@ -54,6 +54,8 @@ func CreateExpression(expressionStr string) (*Expression, error) {
 	return nil, fmt.Errorf(exp.ErrorMessgage)
 }
 
+/****************************************parse****************************************************/
+
 func tryParse(exp *Expression) bool {
 	parse(exp)
 	return true
@@ -489,3 +491,168 @@ func GetFullData(exp string, startIndex int, matchMode MatchMode) (value string,
 	}
 	return result, Match_Mode_Data
 }
+
+/****************************************parse****************************************************/
+
+/****************************************execute****************************************************/
+
+/*
+ * 运算优先级从高到低为：
+ * 小括号：()
+ * 非：!
+ * 乘除：* /
+ * 加减：+ -
+ * 关系运算符：< > =
+ * 逻辑运算符：& ||
+ *
+ * 如果是逻辑表达式，则返回值只有0或1，分别代表false和true
+ */
+func Execute(exp *Expression) interface{} {
+	var result = executeChildren(exp)
+	return result[0]
+}
+
+func executeChildren(exp *Expression) []interface{} {
+	var childrenResults []interface{}
+	if len(exp.ExpressionChildren) == 0 {
+		childrenResults = append(childrenResults, executeNode(exp))
+		return childrenResults
+	}
+	for _, childExp := range exp.ExpressionChildren {
+		childrenResults = append(childrenResults, executeNode(&childExp))
+	}
+
+	/*
+	 * 优先级
+	 * 1. 算术运算
+	 * 2. 关系运算
+	 * 3. 逻辑运算
+	 *
+	 * 【注】：因为针对优先级进行了表达式树的重构，所以每一层级的所有运算符都是同一优先级，因此，这里按照顺序执行即可
+	 */
+	if len(exp.Operators) == 0 {
+		return childrenResults
+	}
+	//var result = childrenResults[0];
+	////计算逻辑与和逻辑或,顺序执行
+	//for i,o := range exp.Operators{
+	//	//非运算和负数特殊，它只需要一个操作数就可完成计算，其他运算符至少需要两个
+	//	var value = Operators[i] == Operator.Not || Operators[i] == Operator.Negative ? childrenResults[i] : childrenResults[i + 1];
+	//	switch (Operators[i])
+	//	{
+	//	case Operator.None:
+	//		break;
+	//	case Operator.And:
+	//		result = (double)result != 0d && (double)value != 0d ? 1d : 0d;
+	//		break;
+	//	case Operator.Or:
+	//		result = (double)result != 0d || (double)value != 0d ? 1d : 0d;
+	//		break;
+	//	case Operator.Not:
+	//		result = (double)value != 0d ? 0d : 1d;
+	//		break;
+	//	case Operator.Plus:
+	//		result = (double)result + (double)value;
+	//		break;
+	//	case Operator.Subtract:
+	//		if ((result is DateTime) && (value is DateTime))
+	//		{
+	//		result = (DateTime)result - (DateTime)value;
+	//		}
+	//		else
+	//		{
+	//		result = (double)result - (double)value;
+	//		}
+	//		break;
+	//	case Operator.Multiply:
+	//		result = (double)result * (double)value;
+	//		break;
+	//	case Operator.Divide:
+	//		result = (double)result / (double)value;
+	//		break;
+	//	case Operator.Mod:
+	//		result = (double)result % (double)value;
+	//		break;
+	//	case Operator.GreaterThan:
+	//		//当前数据是否为日期，如果为日期则按日期比较方式
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = (double)result > (double)value ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result > (DateTime)value ? 1d : 0d;
+	//		}
+	//		break;
+	//	case Operator.LessThan:
+	//		//当前数据是否为日期，如果为日期则按日期比较方式
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = (double)result < (double)value ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result < (DateTime)value ? 1d : 0d;
+	//		}
+	//
+	//		break;
+	//	case Operator.Equals:
+	//		//当前数据是否为日期，如果为日期则按日期比较方式
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = result == value ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result == (DateTime)value ? 1d : 0d;
+	//		}
+	//
+	//		break;
+	//	case Operator.UnEquals:
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = (double)result - (double)value != 0 ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result == (DateTime)value ? 0d : 1d;
+	//		}
+	//		break;
+	//	case Operator.GreaterThanOrEquals:
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = (double)result >= (double)value ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result >= (DateTime)value ? 1d : 0d;
+	//		}
+	//		break;
+	//	case Operator.LessThanOrEquals:
+	//		if (!(result is DateTime) && !(value is DateTime))
+	//		{
+	//		result = (double)result <= (double)value ? 1d : 0d;
+	//		}
+	//		else
+	//		{
+	//		result = (DateTime)result <= (DateTime)value ? 1d : 0d;
+	//		}
+	//		break;
+	//	case Operator.Negative:
+	//		result = float64(value) * -1;
+	//		break;
+	//	default:
+	//		break;
+	//	}
+	//}
+	//childrenResults = []interface{}
+	//childrenResults = append(childrenResults, result)
+	//return childrenResults;
+	return childrenResults
+}
+
+func executeNode(expChild *Expression) interface{} {
+	return nil
+}
+
+/****************************************execute****************************************************/
