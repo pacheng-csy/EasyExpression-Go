@@ -1,4 +1,16 @@
-package EasyExpression
+package easyExpression
+
+// KeyValuePairElementType 定义
+type KeyValuePairElementType struct {
+	Key   string
+	Value ElementType
+}
+
+// KeyValuePairElementString 定义
+type KeyValuePairElementString struct {
+	Key   string
+	Value string
+}
 
 type ElementType int
 
@@ -6,11 +18,13 @@ const (
 	ElementExpression ElementType = 0
 	ElementData       ElementType = 1
 	ElementFunction   ElementType = 2
-	Element_Reference ElementType = 3
+	ElementReference  ElementType = 3
 )
 
+// Operator 表示运算符类型
 type Operator int
 
+// 定义运算符常量
 const (
 	None                Operator = 0
 	And                 Operator = 1
@@ -29,6 +43,56 @@ const (
 	LessThanOrEquals    Operator = 14
 	Negative            Operator = 15
 )
+
+// OperatorInfo 存储运算符的元信息
+type OperatorInfo struct {
+	Name  string // 运算符名称
+	Level int    // 优先级（数字越大优先级越高）
+	Value string // 运算符符号
+}
+
+// GetOperatorInfo 返回运算符的元信息
+func (op Operator) GetOperatorInfo() OperatorInfo {
+	switch op {
+	case And:
+		return OperatorInfo{"与", 1, "&"}
+	case Or:
+		return OperatorInfo{"或", 1, "|"}
+	case Not:
+		return OperatorInfo{"非", 6, "!"}
+	case Plus:
+		return OperatorInfo{"加", 4, "+"}
+	case Subtract:
+		return OperatorInfo{"减", 4, "-"}
+	case Multiply:
+		return OperatorInfo{"乘", 5, "*"}
+	case Divide:
+		return OperatorInfo{"除", 5, "/"}
+	case Mod:
+		return OperatorInfo{"模", 5, "%"}
+	case GreaterThan:
+		return OperatorInfo{"大于", 3, ">"}
+	case LessThan:
+		return OperatorInfo{"小于", 3, "<"}
+	case Equals:
+		return OperatorInfo{"等于", 3, "="}
+	case UnEquals:
+		return OperatorInfo{"不等于", 3, "!="}
+	case GreaterThanOrEquals:
+		return OperatorInfo{"大于等于", 3, ">="}
+	case LessThanOrEquals:
+		return OperatorInfo{"小于等于", 3, "<="}
+	case Negative:
+		return OperatorInfo{"负", 6, "!"}
+	default:
+		return OperatorInfo{"未知", 0, ""}
+	}
+}
+
+// String 实现Stringer接口，方便打印
+func (op Operator) String() string {
+	return op.GetOperatorInfo().Name
+}
 
 type FunctionType int
 

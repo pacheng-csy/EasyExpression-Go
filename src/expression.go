@@ -1,8 +1,9 @@
-package EasyExpression
+package easyExpression
 
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 )
@@ -27,14 +28,14 @@ type Expression struct {
 	//当前层级实际值
 	RealityString string
 	//运算符
-	Operators []Operator
+	Operators []*Operator
 	//函数类型
 	FunctionType FunctionType
 	//若表达式为函数,则可以调用此委托来计算函数输出值,计算时根据函数枚举值来确定要转换的函数类型
 	Function     interface{}
 	FunctionName string
 	//子表达式
-	ExpressionChildren []Expression
+	ExpressionChildren []*Expression
 }
 
 func CreateExpression(expressionStr string) (*Expression, error) {
@@ -55,6 +56,130 @@ func CreateExpression(expressionStr string) (*Expression, error) {
 	}
 	return nil, fmt.Errorf(exp.ErrorMessgage)
 }
+
+/****************************************load****************************************************/
+
+func (e *Expression) LoadArgumentWithDictionary(keyValues map[string]string) []KeyValuePairElementString {
+	result := make([]KeyValuePairElementString, 0)
+	e.loadArgumentWithDictionary(keyValues, &result, e.ElementType == ElementFunction)
+	return result
+}
+
+func (e *Expression) LoadArgument() {
+	// 如果是数据节点或函数节点且有数据内容，则设置RealityString
+	if e.ElementType == ElementData ||
+		(e.ElementType == ElementFunction && e.DataString != "") {
+		e.RealityString = e.DataString
+	}
+
+	// 递归处理所有子表达式
+	for _, childExp := range e.ExpressionChildren {
+		childExp.LoadArgument()
+	}
+}
+
+func (e *Expression) loadArgumentWithDictionary(keyValues map[string]string, result *[]KeyValuePairElementString, zeroInit bool) {
+	if e.DataString != "" {
+		if e.ElementType == ElementFunction {
+			// 处理函数参数替换
+			allParams := e.GetAllParams()
+			for _, param := range allParams {
+				if v, exists := keyValues[param.Key]; exists {
+					replacement := "0"
+					if v != "" {
+						replacement = v
+					}
+					e.DataString = strings.ReplaceAll(e.DataString, param.Key, replacement)
+				}
+			}
+			e.RealityString = e.DataString
+
+			// 集合函数空值默认初始化为0
+			if e.FunctionType == FunctionAvg || e.FunctionType == FunctionSum {
+				zeroInit = true
+			}
+		} else {
+			// 处理普通数据节点
+			if v, exists := keyValues[e.DataString]; exists {
+				if v == "" && zeroInit {
+					e.RealityString = "0"
+				} else {
+					e.RealityString = v
+				}
+				*result = append(*result, KeyValuePairElementString{Key: e.DataString, Value: e.RealityString})
+			} else {
+				e.RealityString = e.DataString
+			}
+		}
+	} else {
+		e.RealityString = e.DataString
+	}
+
+	// 递归处理子表达式
+	for _, childExp := range e.ExpressionChildren {
+		childExp.loadArgumentWithDictionary(keyValues, result, zeroInit)
+	}
+}
+
+func (e *Expression) GetAllParams() []KeyValuePairElementType {
+	var results []KeyValuePairElementType
+
+	if e.ElementType == ElementData && len(e.ExpressionChildren) == 0 {
+		// 处理基础数据节点
+		results = append(results, KeyValuePairElementType{
+			Key:   strings.Replace(e.DataString, "\\", "", -1),
+			Value: e.ElementType,
+		})
+	} else {
+		// 递归获取子节点参数
+		results = append(results, e.getChildrenAllParams(e)...)
+	}
+
+	return results
+}
+
+func (e *Expression) getChildrenAllParams(parent *Expression) []KeyValuePairElementType {
+	var childrenResults []KeyValuePairElementType
+
+	for _, childExp := range e.ExpressionChildren {
+		switch childExp.ElementType {
+		case ElementExpression:
+			// 递归处理表达式类型子节点
+			childrenResults = append(childrenResults, childExp.getChildrenAllParams(childExp)...)
+
+		case ElementFunction:
+			if len(childExp.ExpressionChildren) > 0 {
+				// 有子表达式则递归处理
+				childrenResults = append(childrenResults, childExp.getChildrenAllParams(childExp)...)
+			} else {
+				// 处理函数参数
+				paramList := strings.Split(childExp.DataString, ",")
+				for _, param := range paramList {
+					childrenResults = append(childrenResults, KeyValuePairElementType{
+						Key:   strings.Replace(param, "\\", "", -1),
+						Value: ElementFunction,
+					})
+				}
+			}
+
+		case ElementData, ElementReference:
+			// 处理数据和引用类型
+			paramType := ElementData
+			if parent != nil && parent.ElementType != ElementExpression {
+				paramType = parent.ElementType
+			}
+
+			childrenResults = append(childrenResults, KeyValuePairElementType{
+				Key:   strings.Replace(childExp.DataString, "\\", "", -1),
+				Value: paramType,
+			})
+		}
+	}
+
+	return childrenResults
+}
+
+/****************************************load****************************************************/
 
 /****************************************parse****************************************************/
 
@@ -153,7 +278,7 @@ func parse(exp *Expression) {
 				}
 				dataExp.DataString = matchScope.ChildrenExpressionString
 				dataExp.ElementType = ElementData
-				exp.ExpressionChildren = append(exp.ExpressionChildren, *dataExp)
+				exp.ExpressionChildren = append(exp.ExpressionChildren, dataExp)
 				lastBlock = MatchModeData
 				index = matchScope.EndIndex
 				continue
@@ -166,7 +291,7 @@ func parse(exp *Expression) {
 			var relationSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
 			//去除可能存在的空字符
 			var relationSymbol = convertOperator(strings.Replace(relationSymbolStr, " ", "", -1))
-			exp.Operators = append(exp.Operators, relationSymbol)
+			exp.Operators = append(exp.Operators, &relationSymbol)
 			exp.ElementType = ElementExpression
 			//如果关系运算符为单字符，则索引+0，如果为多字符（<和=中间有空格，需要忽略掉），则跳过这段。eg: <；<=；<  =；
 			index += len(relationSymbolStr) - 1
@@ -176,14 +301,14 @@ func parse(exp *Expression) {
 			var logicSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
 			var logicSymbol = convertOperator(strings.Replace(logicSymbolStr, " ", "", -1))
 			//因为! 既可以单独修饰一个数据，当作逻辑非，也可以与=联合修饰两个数据，当作不等于，所以此处需要进行二次判定。如果是!=，则此符号为关系运算符
-			exp.Operators = append(exp.Operators, logicSymbol)
+			exp.Operators = append(exp.Operators, &logicSymbol)
 			exp.ElementType = ElementExpression
 			index += len(logicSymbolStr) - 1
 			lastBlock = mode
 			continue
 		case MatchModeArithmeticSymbol:
 			var operatorSymbol = convertOperator(fmt.Sprintf("%c", currentChar))
-			exp.Operators = append(exp.Operators, operatorSymbol)
+			exp.Operators = append(exp.Operators, &operatorSymbol)
 			exp.ElementType = ElementExpression
 			lastBlock = mode
 			continue
@@ -203,11 +328,11 @@ func parse(exp *Expression) {
 			functionExp.SourceExpressionString = functionStr
 			functionExp.DataString = matchScope.ChildrenExpressionString
 
-			exp.ExpressionChildren = append(exp.ExpressionChildren, *functionExp)
+			exp.ExpressionChildren = append(exp.ExpressionChildren, functionExp)
 			var paramList = splitParamObject(matchScope.ChildrenExpressionString)
 			for _, v := range paramList {
 				paramExp, _ := CreateExpression(v)
-				functionExp.ExpressionChildren = append(functionExp.ExpressionChildren, *paramExp)
+				functionExp.ExpressionChildren = append(functionExp.ExpressionChildren, paramExp)
 			}
 			//函数解析完毕后直接从函数后面位置继续
 			index = matchScope.EndIndex
@@ -229,10 +354,11 @@ func parse(exp *Expression) {
 				dataExp, _ := CreateExpression(str)
 				if dataMtachMode == MatchModeScope && currentChar == '-' {
 					//如果在Data分支下获取完整数据包含范围描述符号，即小括号，则认为这个负号修饰的是表达式，增加一个负号运算符
-					exp.Operators = append(exp.Operators, Negative)
+					symbol := Negative
+					exp.Operators = append(exp.Operators, &symbol)
 					continue
 				}
-				exp.ExpressionChildren = append(exp.ExpressionChildren, *dataExp)
+				exp.ExpressionChildren = append(exp.ExpressionChildren, dataExp)
 			}
 			index += len(str) - 1
 			continue
@@ -251,7 +377,7 @@ func parse(exp *Expression) {
 		var isOver = exp.ElementType == ElementData || IsOver(matchScope.ChildrenExpressionString)
 		if !isOver {
 			expressionChildren, _ := CreateExpression(matchScope.ChildrenExpressionString)
-			exp.ExpressionChildren = append(exp.ExpressionChildren, *expressionChildren)
+			exp.ExpressionChildren = append(exp.ExpressionChildren, expressionChildren)
 		}
 		// 跳过已解析的块
 		index = matchScope.EndIndex
@@ -498,19 +624,17 @@ func GetFullData(exp string, startIndex int, matchMode MatchMode) (value string,
 
 /****************************************execute****************************************************/
 
-/*
- * 运算优先级从高到低为：
- * 小括号：()
- * 非：!
- * 乘除：* /
- * 加减：+ -
- * 关系运算符：< > =
- * 逻辑运算符：& ||
- *
- * 如果是逻辑表达式，则返回值只有0或1，分别代表false和true
- */
-func Execute(exp *Expression) interface{} {
-	var result = executeChildren(exp)
+// Execute  * 运算优先级从高到低为：
+// * 小括号：()
+// * 非：!
+// * 乘除：* /
+// * 加减：+ -
+// * 关系运算符：< > =
+// * 逻辑运算符：& ||
+// *
+// * 如果是逻辑表达式，则返回值只有0或1，分别代表false和true/*
+func (e *Expression) Execute() interface{} {
+	var result = executeChildren(e)
 	return result[0]
 }
 
@@ -521,7 +645,7 @@ func executeChildren(exp *Expression) []interface{} {
 		return childrenResults
 	}
 	for _, childExp := range exp.ExpressionChildren {
-		childrenResults = append(childrenResults, executeNode(&childExp))
+		childrenResults = append(childrenResults, executeNode(childExp))
 	}
 
 	/*
@@ -540,10 +664,10 @@ func executeChildren(exp *Expression) []interface{} {
 	for i, _ := range exp.Operators {
 		//非运算和负数特殊，它只需要一个操作数就可完成计算，其他运算符至少需要两个
 		var value = childrenResults[i+1]
-		if exp.Operators[i] == Not || exp.Operators[i] == Negative {
+		if *exp.Operators[i] == Not || *exp.Operators[i] == Negative {
 			value = childrenResults[i]
 		}
-		switch exp.Operators[i] {
+		switch *exp.Operators[i] {
 		case None:
 			break
 		case And, Or:
@@ -673,7 +797,171 @@ func executeNode(expChild *Expression) interface{} {
 
 /****************************************execute****************************************************/
 
+/****************************************build****************************************************/
+
+// RebuildExpression 根据运算优先级重组表达式树
+func (e *Expression) RebuildExpression() {
+	if len(e.Operators) == 0 {
+		return
+	}
+
+	for {
+		// 获取所有不同的优先级级别
+		levels := make(map[int]bool)
+		for _, op := range e.Operators {
+			levels[op.GetOperatorInfo().Level] = true
+		}
+
+		// 如果只有一种优先级，直接返回
+		if len(levels) == 1 {
+			return
+		}
+
+		// 找出最高优先级
+		maxLevel := 0
+		for level := range levels {
+			if level > maxLevel {
+				maxLevel = level
+			}
+		}
+
+		// 获取需要合并的操作符索引组
+		operatorGroups := GetTargetLevelOperators(e.Operators, maxLevel)
+
+		for _, group := range operatorGroups {
+			// 因为是倒序，所以起始位置是反的
+			startIndex := group[len(group)-1]
+			endIndex := group[0]
+
+			// 获取需要合并的子表达式
+			childCount := endIndex - startIndex + 2
+			children := make([]*Expression, childCount)
+			copy(children, e.ExpressionChildren[startIndex:startIndex+childCount])
+
+			// 获取对应的操作符
+			childrenOperators := make([]*Operator, len(group))
+			for i, idx := range group {
+				childrenOperators[i] = e.Operators[idx]
+			}
+
+			// 合并为新表达式
+			newExp := buildChildren(children, childrenOperators)
+
+			// 在原集合中删除合并的部分并插入新表达式
+			e.ExpressionChildren = append(
+				e.ExpressionChildren[:startIndex],
+				append([]*Expression{&newExp}, e.ExpressionChildren[startIndex+childCount:]...)...,
+			)
+
+			// 删除已合并的操作符（需要从后往前删除以避免索引变化）
+			sort.Sort(sort.Reverse(sort.IntSlice(group)))
+			for _, idx := range group {
+				e.Operators = append(e.Operators[:idx], e.Operators[idx+1:]...)
+			}
+		}
+	}
+}
+
+func buildChildren(expressions []*Expression, operators []*Operator) Expression {
+	var dataString = expressions[0].DataString
+	if expressions[0].ElementType == ElementFunction {
+		dataString = expressions[0].SourceExpressionString
+	}
+
+	for i := 1; i < len(expressions); i++ {
+		childStr := expressions[i].DataString
+		if expressions[i].ElementType == ElementExpression {
+			childStr = expressions[i].SourceExpressionString
+		}
+		dataString += operators[i-1].GetOperatorInfo().Value + childStr
+	}
+	exp := Expression{
+		ExpressionChildren:     expressions,
+		Operators:              operators,
+		DataString:             dataString,
+		ElementType:            ElementExpression,
+		SourceExpressionString: dataString,
+		Status:                 true,
+		FunctionType:           FunctionNone,
+	}
+	return exp
+}
+
+// GetTargetLevelOperators 获取相同级别且连续的子表达式运算符
+func GetTargetLevelOperators(oldOperators []*Operator, level int) [][]int {
+	/*
+	 * eg:
+	 * 序列为{2,3,1,3,3,2,3,3}, 输入为3，最终输出为各元素的索引集合，{1},{3,4},{6,7}
+	 */
+	var result [][]int
+	var operators []int
+
+	// 此处倒序循环是为了方便后续做删除操作，否则删除后索引的变化会导致数组越界
+	for i := len(oldOperators) - 1; i >= 0; i-- {
+		if oldOperators[i].GetOperatorInfo().Level == level {
+			operators = append(operators, i)
+		} else {
+			if len(operators) > 0 {
+				// Go中没有直接的DeepCopy，需要手动复制slice
+				tmp := make([]int, len(operators))
+				copy(tmp, operators)
+				result = append(result, tmp)
+				operators = operators[:0] // 清空slice
+			}
+		}
+	}
+	if len(operators) != 0 {
+		result = append(result, operators)
+	}
+	return result
+}
+
+/****************************************build****************************************************/
+
+/****************************************check****************************************************/
+
+func (e *Expression) Check() error {
+	err := checkExpression(e)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkExpression(expression *Expression) error {
+	/*
+	 * 1. 除了非运算只需要一个数据，其他的运算符至少需要2个数据
+	 */
+	if len(expression.Operators) > 0 {
+		notOperatorCount := 0
+		for _, op := range expression.Operators {
+			if *op == Not {
+				notOperatorCount++
+			}
+		}
+
+		expectedChildren := len(expression.Operators) - notOperatorCount + 1
+		if len(expression.ExpressionChildren) != expectedChildren {
+			return fmt.Errorf("expression check error: data not match operator")
+		}
+	}
+
+	for _, child := range expression.ExpressionChildren {
+		if err := checkExpression(child); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+/****************************************check****************************************************/
+
+/****************************************private****************************************************/
+
 func isTime(v interface{}) bool {
 	_, ok := v.(time.Time)
 	return ok
 }
+
+/****************************************private****************************************************/

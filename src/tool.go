@@ -1,4 +1,4 @@
-package EasyExpression
+package easyExpression
 
 import "math"
 
