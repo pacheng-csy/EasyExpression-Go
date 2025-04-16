@@ -2,7 +2,9 @@ package EasyExpression
 
 import (
 	"fmt"
+	"math"
 	"strings"
+	"time"
 )
 
 type match_Scope struct {
@@ -87,60 +89,60 @@ func SetMatchMode(currentChar byte, lastMode MatchMode) (matchMode MatchMode, en
 	//go里没有nullable类型，常量又不能取地址，所以此处用空格字符代替nil
 	switch currentChar {
 	case '(':
-		return Match_Mode_Scope, ')'
+		return MatchModeScope, ')'
 	case '"':
-		return Match_Mode_Scope, '"'
+		return MatchModeScope, '"'
 	case '\'':
-		return Match_Mode_Scope, '\''
+		return MatchModeScope, '\''
 	case '[':
-		return Match_Mode_Function, ']'
+		return MatchModeFunction, ']'
 	case '&':
-		return Match_Mode_LogicSymbol, ' '
+		return MatchModeLogicSymbol, ' '
 	case '|':
-		return Match_Mode_LogicSymbol, ' '
+		return MatchModeLogicSymbol, ' '
 	case '!':
-		return Match_Mode_LogicSymbol, ' '
+		return MatchModeLogicSymbol, ' '
 	case '+':
-		return Match_Mode_ArithmeticSymbol, ' '
+		return MatchModeArithmeticSymbol, ' '
 	case '-':
 		//有可能是负号，也有可能是减号;上一个block是符号或者none，这此处应该当作负号处理
-		if lastMode == Match_Mode_Unknown || lastMode == Match_Mode_ArithmeticSymbol || lastMode == Match_Mode_LogicSymbol || lastMode == Match_Mode_RelationSymbol {
-			return Match_Mode_Data, ' '
+		if lastMode == MatchModeUnknown || lastMode == MatchModeArithmeticSymbol || lastMode == MatchModeLogicSymbol || lastMode == MatchModeRelationSymbol {
+			return MatchModeData, ' '
 		}
-		return Match_Mode_ArithmeticSymbol, ' '
+		return MatchModeArithmeticSymbol, ' '
 	case '*':
-		return Match_Mode_ArithmeticSymbol, ' '
+		return MatchModeArithmeticSymbol, ' '
 	case '/':
-		return Match_Mode_ArithmeticSymbol, ' '
+		return MatchModeArithmeticSymbol, ' '
 	case '%':
-		return Match_Mode_ArithmeticSymbol, ' '
+		return MatchModeArithmeticSymbol, ' '
 	case '<':
-		return Match_Mode_RelationSymbol, ' '
+		return MatchModeRelationSymbol, ' '
 	case '>':
-		return Match_Mode_RelationSymbol, ' '
+		return MatchModeRelationSymbol, ' '
 	case '=':
 		/*=继承上一个相邻符号的类型，比如<=,>=，此时=号为关系运算符；上一个为逻辑运算符的话，此处=为逻辑运算符，比如 !=；如果上一个block不为符号，那么此时=为等于（关系运算符）
 		因此，只有上一个block为逻辑运算符时，才返回logicSymbol，其他情况返回relationSymbol
 		*/
-		if lastMode == Match_Mode_LogicSymbol {
-			return Match_Mode_LogicSymbol, ' '
+		if lastMode == MatchModeLogicSymbol {
+			return MatchModeLogicSymbol, ' '
 		}
-		return Match_Mode_RelationSymbol, ' '
+		return MatchModeRelationSymbol, ' '
 	case '\\':
-		return Match_Mode_EscapeCharacter, ' '
+		return MatchModeEscapeCharacter, ' '
 	default:
-		return Match_Mode_Data, ' '
+		return MatchModeData, ' '
 	}
 }
 
 func parse(exp *Expression) {
-	lastBlock := Match_Mode_Unknown
+	lastBlock := MatchModeUnknown
 	for index := 0; index < len(exp.SourceExpressionString); index++ {
 		var matchScope match_Scope
 		currentChar := exp.SourceExpressionString[index]
 		mode, endTag := SetMatchMode(currentChar, lastBlock)
 		switch mode {
-		case Match_Mode_Scope:
+		case MatchModeScope:
 			if currentChar == endTag {
 				//'' 或者 "" 实际上应该认作数据类型
 				matchScope = findDataEnd(currentChar, exp.SourceExpressionString, index)
@@ -150,9 +152,9 @@ func parse(exp *Expression) {
 					panic(err)
 				}
 				dataExp.DataString = matchScope.ChildrenExpressionString
-				dataExp.ElementType = Element_Data
+				dataExp.ElementType = ElementData
 				exp.ExpressionChildren = append(exp.ExpressionChildren, *dataExp)
-				lastBlock = Match_Mode_Data
+				lastBlock = MatchModeData
 				index = matchScope.EndIndex
 				continue
 			} else {
@@ -160,32 +162,32 @@ func parse(exp *Expression) {
 			}
 			exp.Status = matchScope.Status
 			break
-		case Match_Mode_RelationSymbol:
+		case MatchModeRelationSymbol:
 			var relationSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
 			//去除可能存在的空字符
 			var relationSymbol = convertOperator(strings.Replace(relationSymbolStr, " ", "", -1))
 			exp.Operators = append(exp.Operators, relationSymbol)
-			exp.ElementType = Element_Expression
+			exp.ElementType = ElementExpression
 			//如果关系运算符为单字符，则索引+0，如果为多字符（<和=中间有空格，需要忽略掉），则跳过这段。eg: <；<=；<  =；
 			index += len(relationSymbolStr) - 1
 			lastBlock = mode
 			continue
-		case Match_Mode_LogicSymbol:
+		case MatchModeLogicSymbol:
 			var logicSymbolStr = getFullSymbol(exp.SourceExpressionString, index, mode)
 			var logicSymbol = convertOperator(strings.Replace(logicSymbolStr, " ", "", -1))
 			//因为! 既可以单独修饰一个数据，当作逻辑非，也可以与=联合修饰两个数据，当作不等于，所以此处需要进行二次判定。如果是!=，则此符号为关系运算符
 			exp.Operators = append(exp.Operators, logicSymbol)
-			exp.ElementType = Element_Expression
+			exp.ElementType = ElementExpression
 			index += len(logicSymbolStr) - 1
 			lastBlock = mode
 			continue
-		case Match_Mode_ArithmeticSymbol:
+		case MatchModeArithmeticSymbol:
 			var operatorSymbol = convertOperator(fmt.Sprintf("%c", currentChar))
 			exp.Operators = append(exp.Operators, operatorSymbol)
-			exp.ElementType = Element_Expression
+			exp.ElementType = ElementExpression
 			lastBlock = mode
 			continue
-		case Match_Mode_Function:
+		case MatchModeFunction:
 			matchScope = findEnd('[', endTag, exp.SourceExpressionString, index)
 			//确定函数类型
 			var executeType, function = GetFunctionType(matchScope.ChildrenExpressionString)
@@ -194,7 +196,7 @@ func parse(exp *Expression) {
 			matchScope = findEnd('(', ')', exp.SourceExpressionString, matchScope.EndIndex+1)
 			functionStr += "(" + matchScope.ChildrenExpressionString + ")"
 			functionExp, _ := CreateExpression(functionStr)
-			functionExp.ElementType = Element_Function
+			functionExp.ElementType = ElementFunction
 			functionExp.FunctionType = executeType
 			functionExp.Function = function
 			functionExp.FunctionName = executeType.String()
@@ -211,7 +213,7 @@ func parse(exp *Expression) {
 			index = matchScope.EndIndex
 			lastBlock = mode
 			continue
-		case Match_Mode_Data:
+		case MatchModeData:
 			if currentChar == ' ' {
 				continue
 			}
@@ -220,21 +222,21 @@ func parse(exp *Expression) {
 			if len(str) != 0 {
 				//todo 排除转义符长度
 				if str == exp.SourceExpressionString {
-					exp.ElementType = Element_Data
+					exp.ElementType = ElementData
 					exp.DataString = str
 					return
 				}
 				dataExp, _ := CreateExpression(str)
-				if dataMtachMode == Match_Mode_Scope && currentChar == '-' {
+				if dataMtachMode == MatchModeScope && currentChar == '-' {
 					//如果在Data分支下获取完整数据包含范围描述符号，即小括号，则认为这个负号修饰的是表达式，增加一个负号运算符
-					exp.Operators = append(exp.Operators, Operator_Negative)
+					exp.Operators = append(exp.Operators, Negative)
 					continue
 				}
 				exp.ExpressionChildren = append(exp.ExpressionChildren, *dataExp)
 			}
 			index += len(str) - 1
 			continue
-		case Match_Mode_EscapeCharacter:
+		case MatchModeEscapeCharacter:
 			//跳过转义符号
 			index++
 			lastBlock = mode
@@ -246,7 +248,7 @@ func parse(exp *Expression) {
 			break
 		}
 		// 递归解析子表达式
-		var isOver = exp.ElementType == Element_Data || IsOver(matchScope.ChildrenExpressionString)
+		var isOver = exp.ElementType == ElementData || IsOver(matchScope.ChildrenExpressionString)
 		if !isOver {
 			expressionChildren, _ := CreateExpression(matchScope.ChildrenExpressionString)
 			exp.ExpressionChildren = append(exp.ExpressionChildren, *expressionChildren)
@@ -352,38 +354,38 @@ func findDataEnd(tag byte, exp string, index int) match_Scope {
 func convertOperator(currentChar string) Operator {
 	switch currentChar {
 	case "&":
-		return Operator_And
+		return And
 	case "|":
-		return Operator_Or
+		return Or
 	case "!":
-		return Operator_Not
+		return Not
 	case "+":
-		return Operator_Plus
+		return Plus
 	case "-":
 		//负号特殊,此处算作减号
-		return Operator_Subtract
+		return Subtract
 	case "*":
-		return Operator_Multiply
+		return Multiply
 	case "/":
-		return Operator_Divide
+		return Divide
 	case "%":
-		return Operator_Mod
+		return Mod
 	case ">":
-		return Operator_GreaterThan
+		return GreaterThan
 	case "<":
-		return Operator_LessThan
+		return LessThan
 	case "=":
-		return Operator_Equals
+		return Equals
 	case "!=":
-		return Operator_UnEquals
+		return UnEquals
 	case "<=":
 	case "=<":
-		return Operator_LessThanOrEquals
+		return LessThanOrEquals
 	case ">=":
 	case "=>":
-		return Operator_GreaterThanOrEquals
+		return GreaterThanOrEquals
 	}
-	return Operator_None
+	return None
 }
 
 func getFullSymbol(exp string, startIndex int, matchMode MatchMode) string {
@@ -398,14 +400,14 @@ func getFullSymbol(exp string, startIndex int, matchMode MatchMode) string {
 			continue
 		}
 		mode, _ := SetMatchMode(exp[i], matchMode)
-		if mode == Match_Mode_RelationSymbol && matchMode == Match_Mode_RelationSymbol {
+		if mode == MatchModeRelationSymbol && matchMode == MatchModeRelationSymbol {
 			result = fmt.Sprintf("%s%c", result, expArray[i])
 			break
-		} else if mode == Match_Mode_LogicSymbol && expArray[startIndex] == '!' && matchMode == Match_Mode_LogicSymbol {
+		} else if mode == MatchModeLogicSymbol && expArray[startIndex] == '!' && matchMode == MatchModeLogicSymbol {
 			result = fmt.Sprintf("%s%c", result, expArray[i])
 			break
 		}
-		if mode == Match_Mode_Data {
+		if mode == MatchModeData {
 			break
 		}
 		matchMode = mode
@@ -417,41 +419,41 @@ func GetFunctionType(key string) (executeType FunctionType, function interface{}
 	key = strings.ToLower(key)
 	switch key {
 	case "sum":
-		return Function_Sum, FormulaAction.Sum
+		return FunctionSum, FormulaAction.Sum
 	case "avg":
-		return Function_Avg, FormulaAction.Avg
+		return FunctionAvg, FormulaAction.Avg
 	case "contains":
-		return Function_Contains, FormulaAction.Contains
+		return FunctionContains, FormulaAction.Contains
 	case "excluding":
-		return Function_ContainsExcept, FormulaAction.Excluding
+		return FunctionContainsExcept, FormulaAction.Excluding
 	case "equals":
-		return Function_Equals, FormulaAction.Equals
+		return FunctionEquals, FormulaAction.Equals
 	case "startwith":
-		return Function_StartWith, FormulaAction.StartWith
+		return FunctionStartWith, FormulaAction.StartWith
 	case "endwith":
-		return Function_EndWith, FormulaAction.EndWith
+		return FunctionEndWith, FormulaAction.EndWith
 	case "different":
-		return Function_Different, FormulaAction.Different
+		return FunctionDifferent, FormulaAction.Different
 	case "round":
-		return Function_Round, FormulaAction.Round
+		return FunctionRound, FormulaAction.Round
 	case "edate":
-		return Function_EDate, FormulaAction.EDate
+		return FunctionEDate, FormulaAction.EDate
 	case "eodate":
-		return Function_EODate, FormulaAction.EODate
+		return FunctionEoDate, FormulaAction.EODate
 	case "nowtime":
-		return Function_NowTime, FormulaAction.NowTime
+		return FunctionNowTime, FormulaAction.NowTime
 	case "timetostring":
-		return Function_TimeToString, FormulaAction.TimeToString
+		return FunctionTimeToString, FormulaAction.TimeToString
 	case "days":
-		return Function_Days, FormulaAction.Days
+		return FunctionDays, FormulaAction.Days
 	case "hours":
-		return Function_Hours, FormulaAction.Hours
+		return FunctionHours, FormulaAction.Hours
 	case "minutes":
-		return Function_Minutes, FormulaAction.Minutes
+		return FunctionMinutes, FormulaAction.Minutes
 	case "seconds":
-		return Function_Seconds, FormulaAction.Seconds
+		return FunctionSeconds, FormulaAction.Seconds
 	case "millseconds":
-		return Function_MillSeconds, FormulaAction.MillSeconds
+		return FunctionMillSeconds, FormulaAction.MillSeconds
 	}
 	panic(key + " 函数未定义")
 }
@@ -459,26 +461,26 @@ func GetFunctionType(key string) (executeType FunctionType, function interface{}
 func GetFullData(exp string, startIndex int, matchMode MatchMode) (value string, mode MatchMode) {
 	expArray := []byte(exp)
 	if startIndex == len(exp) {
-		return fmt.Sprintf("%c", expArray[len(expArray)-1]), Match_Mode_Data
+		return fmt.Sprintf("%c", expArray[len(expArray)-1]), MatchModeData
 	}
 	result := fmt.Sprintf("%c", expArray[startIndex])
 	for i := startIndex + 1; i < len(exp); i++ {
 		mode, _ := SetMatchMode(exp[i], matchMode)
 		switch mode {
-		case Match_Mode_Data:
+		case MatchModeData:
 			result = fmt.Sprintf("%s%c", result, expArray[i])
 			matchMode = mode
 			continue
-		case Match_Mode_LogicSymbol:
-			return result, Match_Mode_LogicSymbol
-		case Match_Mode_ArithmeticSymbol:
-			return result, Match_Mode_ArithmeticSymbol
-		case Match_Mode_RelationSymbol:
-			return result, Match_Mode_RelationSymbol
-		case Match_Mode_Scope:
+		case MatchModeLogicSymbol:
+			return result, MatchModeLogicSymbol
+		case MatchModeArithmeticSymbol:
+			return result, MatchModeArithmeticSymbol
+		case MatchModeRelationSymbol:
+			return result, MatchModeRelationSymbol
+		case MatchModeScope:
 			var matchScope = findEnd('(', ')', exp, i)
-			return matchScope.ChildrenExpressionString, Match_Mode_Scope
-		case Match_Mode_EscapeCharacter:
+			return matchScope.ChildrenExpressionString, MatchModeScope
+		case MatchModeEscapeCharacter:
 			//跳过转义符及后面一个字符
 			result = fmt.Sprintf("%s%c", result, expArray[i])
 			result = fmt.Sprintf("%s%c", result, expArray[i+1])
@@ -486,10 +488,10 @@ func GetFullData(exp string, startIndex int, matchMode MatchMode) (value string,
 			matchMode = mode
 			continue
 		default:
-			return result, Match_Mode_Data
+			return result, MatchModeData
 		}
 	}
-	return result, Match_Mode_Data
+	return result, MatchModeData
 }
 
 /****************************************parse****************************************************/
@@ -533,121 +535,135 @@ func executeChildren(exp *Expression) []interface{} {
 	if len(exp.Operators) == 0 {
 		return childrenResults
 	}
-	//var result = childrenResults[0];
-	////计算逻辑与和逻辑或,顺序执行
-	//for i,o := range exp.Operators{
-	//	//非运算和负数特殊，它只需要一个操作数就可完成计算，其他运算符至少需要两个
-	//	var value = Operators[i] == Operator.Not || Operators[i] == Operator.Negative ? childrenResults[i] : childrenResults[i + 1];
-	//	switch (Operators[i])
-	//	{
-	//	case Operator.None:
-	//		break;
-	//	case Operator.And:
-	//		result = (double)result != 0d && (double)value != 0d ? 1d : 0d;
-	//		break;
-	//	case Operator.Or:
-	//		result = (double)result != 0d || (double)value != 0d ? 1d : 0d;
-	//		break;
-	//	case Operator.Not:
-	//		result = (double)value != 0d ? 0d : 1d;
-	//		break;
-	//	case Operator.Plus:
-	//		result = (double)result + (double)value;
-	//		break;
-	//	case Operator.Subtract:
-	//		if ((result is DateTime) && (value is DateTime))
-	//		{
-	//		result = (DateTime)result - (DateTime)value;
-	//		}
-	//		else
-	//		{
-	//		result = (double)result - (double)value;
-	//		}
-	//		break;
-	//	case Operator.Multiply:
-	//		result = (double)result * (double)value;
-	//		break;
-	//	case Operator.Divide:
-	//		result = (double)result / (double)value;
-	//		break;
-	//	case Operator.Mod:
-	//		result = (double)result % (double)value;
-	//		break;
-	//	case Operator.GreaterThan:
-	//		//当前数据是否为日期，如果为日期则按日期比较方式
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = (double)result > (double)value ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result > (DateTime)value ? 1d : 0d;
-	//		}
-	//		break;
-	//	case Operator.LessThan:
-	//		//当前数据是否为日期，如果为日期则按日期比较方式
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = (double)result < (double)value ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result < (DateTime)value ? 1d : 0d;
-	//		}
-	//
-	//		break;
-	//	case Operator.Equals:
-	//		//当前数据是否为日期，如果为日期则按日期比较方式
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = result == value ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result == (DateTime)value ? 1d : 0d;
-	//		}
-	//
-	//		break;
-	//	case Operator.UnEquals:
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = (double)result - (double)value != 0 ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result == (DateTime)value ? 0d : 1d;
-	//		}
-	//		break;
-	//	case Operator.GreaterThanOrEquals:
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = (double)result >= (double)value ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result >= (DateTime)value ? 1d : 0d;
-	//		}
-	//		break;
-	//	case Operator.LessThanOrEquals:
-	//		if (!(result is DateTime) && !(value is DateTime))
-	//		{
-	//		result = (double)result <= (double)value ? 1d : 0d;
-	//		}
-	//		else
-	//		{
-	//		result = (DateTime)result <= (DateTime)value ? 1d : 0d;
-	//		}
-	//		break;
-	//	case Operator.Negative:
-	//		result = float64(value) * -1;
-	//		break;
-	//	default:
-	//		break;
-	//	}
-	//}
-	//childrenResults = []interface{}
-	//childrenResults = append(childrenResults, result)
-	//return childrenResults;
+	var result = childrenResults[0]
+	//计算逻辑与和逻辑或,顺序执行
+	for i, _ := range exp.Operators {
+		//非运算和负数特殊，它只需要一个操作数就可完成计算，其他运算符至少需要两个
+		var value = childrenResults[i+1]
+		if exp.Operators[i] == Not || exp.Operators[i] == Negative {
+			value = childrenResults[i]
+		}
+		switch exp.Operators[i] {
+		case None:
+			break
+		case And, Or:
+			result = 0
+			if result.(float64) != 0 && value.(float64) != 0 {
+				result = 1
+			}
+			break
+		case Not:
+			result = 0
+			if value.(float64) == 0 {
+				result = 1
+			}
+			break
+		case Plus:
+			result = result.(float64) + value.(float64)
+			break
+		case Subtract:
+			if isTime(result) && isTime(value) {
+				result = result.(time.Time).Sub(value.(time.Time))
+			} else {
+				result = result.(float64) - value.(float64)
+			}
+			break
+		case Multiply:
+			result = result.(float64) * value.(float64)
+			break
+		case Divide:
+			result = result.(float64) / value.(float64)
+			break
+		case Mod:
+			result = math.Mod(result.(float64), value.(float64))
+			break
+		case GreaterThan:
+			//当前数据是否为日期，如果为日期则按日期比较方式
+			if !isTime(result) && !isTime(value) {
+				result = 0
+				if result.(float64) > value.(float64) {
+					result = 1
+				}
+			} else {
+				result = 0
+				if result.(time.Time).After(value.(time.Time)) {
+					result = 1
+				}
+			}
+			break
+		case LessThan:
+			//当前数据是否为日期，如果为日期则按日期比较方式
+			if !isTime(result) && !isTime(value) {
+				result = 0
+				if result.(float64) < value.(float64) {
+					result = 1
+				}
+			} else {
+				result = 0
+				if result.(time.Time).Before(value.(time.Time)) {
+					result = 1
+				}
+			}
+
+			break
+		case Equals:
+			result = 0
+			//当前数据是否为日期，如果为日期则按日期比较方式
+			if !isTime(result) && !isTime(value) {
+				if result == value {
+					result = 1
+				}
+			} else {
+				if result.(time.Time) == value.(time.Time) {
+					result = 1
+				}
+			}
+			break
+		case UnEquals:
+			result = 0
+			if !isTime(result) && !isTime(value) {
+				if result.(float64) != value.(float64) {
+					result = 1
+				}
+			} else {
+				if result.(time.Time) == value.(time.Time) {
+					result = 1
+				}
+			}
+			break
+		case GreaterThanOrEquals:
+			result = 0
+			if !isTime(result) && !isTime(value) {
+				if result.(float64) >= value.(float64) {
+					result = 1
+				}
+			} else {
+				if result.(time.Time).After(value.(time.Time)) || result == value {
+					result = 1
+				}
+			}
+			break
+		case LessThanOrEquals:
+			result = 0
+			if !isTime(result) && !isTime(value) {
+				if result.(float64) <= value.(float64) {
+					result = 1
+				}
+			} else {
+				if result.(time.Time).Before(value.(time.Time)) || result == value {
+					result = 1
+				}
+			}
+			break
+		case Negative:
+			result = value.(float64) * -1
+			break
+		default:
+			break
+		}
+	}
+	childrenResults = []interface{}{}
+	childrenResults = append(childrenResults, result)
 	return childrenResults
 }
 
@@ -656,3 +672,8 @@ func executeNode(expChild *Expression) interface{} {
 }
 
 /****************************************execute****************************************************/
+
+func isTime(v interface{}) bool {
+	_, ok := v.(time.Time)
+	return ok
+}

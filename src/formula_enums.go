@@ -3,99 +3,99 @@ package EasyExpression
 type ElementType int
 
 const (
-	Element_Expression ElementType = 0
-	Element_Data       ElementType = 1
-	Element_Function   ElementType = 2
-	Element_Reference  ElementType = 3
+	ElementExpression ElementType = 0
+	ElementData       ElementType = 1
+	ElementFunction   ElementType = 2
+	Element_Reference ElementType = 3
 )
 
 type Operator int
 
 const (
-	Operator_None                Operator = 0
-	Operator_And                 Operator = 1
-	Operator_Or                  Operator = 2
-	Operator_Not                 Operator = 3
-	Operator_Plus                Operator = 4
-	Operator_Subtract            Operator = 5
-	Operator_Multiply            Operator = 6
-	Operator_Divide              Operator = 7
-	Operator_Mod                 Operator = 8
-	Operator_GreaterThan         Operator = 9
-	Operator_LessThan            Operator = 10
-	Operator_Equals              Operator = 11
-	Operator_UnEquals            Operator = 12
-	Operator_GreaterThanOrEquals Operator = 13
-	Operator_LessThanOrEquals    Operator = 14
-	Operator_Negative            Operator = 15
+	None                Operator = 0
+	And                 Operator = 1
+	Or                  Operator = 2
+	Not                 Operator = 3
+	Plus                Operator = 4
+	Subtract            Operator = 5
+	Multiply            Operator = 6
+	Divide              Operator = 7
+	Mod                 Operator = 8
+	GreaterThan         Operator = 9
+	LessThan            Operator = 10
+	Equals              Operator = 11
+	UnEquals            Operator = 12
+	GreaterThanOrEquals Operator = 13
+	LessThanOrEquals    Operator = 14
+	Negative            Operator = 15
 )
 
 type FunctionType int
 
 const (
-	Function_None           FunctionType = 0
-	Function_Sum            FunctionType = 1
-	Function_Avg            FunctionType = 2
-	Function_Contains       FunctionType = 3
-	Function_ContainsExcept FunctionType = 4
-	Function_Equals         FunctionType = 5
-	Function_StartWith      FunctionType = 6
-	Function_EndWith        FunctionType = 7
-	Function_Different      FunctionType = 8
-	Function_EDate          FunctionType = 9
-	Function_EODate         FunctionType = 10
-	Function_NowTime        FunctionType = 11
-	Function_TimeToString   FunctionType = 12
-	Function_Round          FunctionType = 13
-	Function_Days           FunctionType = 14
-	Function_Hours          FunctionType = 15
-	Function_Minutes        FunctionType = 16
-	Function_Seconds        FunctionType = 17
-	Function_MillSeconds    FunctionType = 18
-	Function_Customer       FunctionType = 19
+	FunctionNone           FunctionType = 0
+	FunctionSum            FunctionType = 1
+	FunctionAvg            FunctionType = 2
+	FunctionContains       FunctionType = 3
+	FunctionContainsExcept FunctionType = 4
+	FunctionEquals         FunctionType = 5
+	FunctionStartWith      FunctionType = 6
+	FunctionEndWith        FunctionType = 7
+	FunctionDifferent      FunctionType = 8
+	FunctionEDate          FunctionType = 9
+	FunctionEoDate         FunctionType = 10
+	FunctionNowTime        FunctionType = 11
+	FunctionTimeToString   FunctionType = 12
+	FunctionRound          FunctionType = 13
+	FunctionDays           FunctionType = 14
+	FunctionHours          FunctionType = 15
+	FunctionMinutes        FunctionType = 16
+	FunctionSeconds        FunctionType = 17
+	FunctionMillSeconds    FunctionType = 18
+	FunctionCustomer       FunctionType = 19
 )
 
 func (f FunctionType) String() string {
 	switch f {
-	case Function_None:
+	case FunctionNone:
 		return "None"
-	case Function_Sum:
+	case FunctionSum:
 		return "Sum"
-	case Function_Avg:
+	case FunctionAvg:
 		return "Avg"
-	case Function_Contains:
+	case FunctionContains:
 		return "Contains"
-	case Function_ContainsExcept:
+	case FunctionContainsExcept:
 		return "ContainsExcept"
-	case Function_Equals:
+	case FunctionEquals:
 		return "Equals"
-	case Function_StartWith:
+	case FunctionStartWith:
 		return "StartWith"
-	case Function_EndWith:
+	case FunctionEndWith:
 		return "EndWith"
-	case Function_Different:
+	case FunctionDifferent:
 		return "Different"
-	case Function_EDate:
+	case FunctionEDate:
 		return "EDate"
-	case Function_EODate:
+	case FunctionEoDate:
 		return "EODate"
-	case Function_NowTime:
+	case FunctionNowTime:
 		return "NowTime"
-	case Function_TimeToString:
+	case FunctionTimeToString:
 		return "TimeToString"
-	case Function_Round:
+	case FunctionRound:
 		return "Round"
-	case Function_Days:
+	case FunctionDays:
 		return "Days"
-	case Function_Hours:
+	case FunctionHours:
 		return "Hours"
-	case Function_Minutes:
+	case FunctionMinutes:
 		return "Minutes"
-	case Function_Seconds:
+	case FunctionSeconds:
 		return "Seconds"
-	case Function_MillSeconds:
+	case FunctionMillSeconds:
 		return "MillSeconds"
-	case Function_Customer:
+	case FunctionCustomer:
 		return "Customer"
 	default:
 		return ""
@@ -106,19 +106,19 @@ type MatchMode int
 
 const (
 	//未知模式
-	Match_Mode_Unknown MatchMode = 0
+	MatchModeUnknown MatchMode = 0
 	//数据
-	Match_Mode_Data MatchMode = 1
+	MatchModeData MatchMode = 1
 	//逻辑运算符
-	Match_Mode_LogicSymbol MatchMode = 2
+	MatchModeLogicSymbol MatchMode = 2
 	//算术运算符
-	Match_Mode_ArithmeticSymbol MatchMode = 3
+	MatchModeArithmeticSymbol MatchMode = 3
 	//运算范围
-	Match_Mode_Scope MatchMode = 4
+	MatchModeScope MatchMode = 4
 	//函数
-	Match_Mode_Function MatchMode = 5
+	MatchModeFunction MatchMode = 5
 	//关系运算符
-	Match_Mode_RelationSymbol MatchMode = 6
+	MatchModeRelationSymbol MatchMode = 6
 	//转义符
-	Match_Mode_EscapeCharacter MatchMode = 7
+	MatchModeEscapeCharacter MatchMode = 7
 )
