@@ -1,7 +1,9 @@
 package easyExpression
 
 import (
+	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -15,22 +17,34 @@ type FormulaAction struct {
 func (f FormulaAction) Sum(values ...any) interface{} {
 	result := float64(0)
 	for _, v := range values {
-		temp, err := strconv.ParseFloat(v.(string), 64)
-		if err != nil {
-			panic("function sum error: " + v.(string) + "not a number")
+		//if v is string
+		if _, ok := v.(string); ok {
+			value := strings.Replace(v.(string), " ", "", -1)
+			temp, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				panic("function sum error: " + v.(string) + "not a number")
+			}
+			result = result + temp
+		} else if _, ok := v.(float64); ok {
+			result = result + v.(float64)
 		}
-		result = result + temp
 	}
 	return result
 }
 func (f FormulaAction) Avg(values ...any) interface{} {
 	result := float64(0)
 	for _, v := range values {
-		temp, err := strconv.ParseFloat(v.(string), 64)
-		if err != nil {
-			panic("function sum error: " + v.(string) + "not a number")
+		//if v is string
+		if _, ok := v.(string); ok {
+			value := strings.Replace(v.(string), " ", "", -1)
+			temp, err := strconv.ParseFloat(value, 64)
+			if err != nil {
+				panic("function sum error: " + v.(string) + "not a number")
+			}
+			result = result + temp
+		} else if _, ok := v.(float64); ok {
+			result = result + v.(float64)
 		}
-		result = result + temp
 	}
 	return result / float64(len(values))
 }
@@ -62,13 +76,17 @@ func (f FormulaAction) Round(values ...any) interface{} {
 /*-----------------String---------------------------*/
 
 func (f FormulaAction) Contains(values ...any) interface{} {
-	key := values[0].(string)
-	str := values[1].(string)
-	if len(key) == 0 {
-		return float64(1)
+	if len(values) == 0 {
+		panic("function equals called with no arguments")
 	}
-	if strings.Contains(str, key) {
-		return float64(1)
+	if reflect.TypeOf(values[0]).Kind() == reflect.Slice && len(values[0].([]interface{})) == 2 {
+		array := values[0].([]interface{})
+		key := fmt.Sprintf("%v", array[0])
+		str := fmt.Sprintf("%v", array[1])
+		if strings.Contains(key, str) {
+			return float64(1)
+		}
+		return float64(0)
 	}
 	return float64(0)
 }
@@ -84,12 +102,19 @@ func (f FormulaAction) Excluding(values ...any) interface{} {
 	return float64(1)
 }
 func (f FormulaAction) Equals(values ...any) interface{} {
-	key := values[0].(string)
-	str := values[1].(string)
-	if key == str {
-		return float64(1)
+	if len(values) == 0 {
+		panic("function equals called with no arguments")
 	}
-	return float64(0)
+	if reflect.TypeOf(values[0]).Kind() == reflect.Slice && len(values[0].([]interface{})) == 2 {
+		array := values[0].([]interface{})
+		key := fmt.Sprintf("%v", array[0])
+		str := fmt.Sprintf("%v", array[1])
+		if key == str {
+			return float64(1)
+		}
+		return float64(0)
+	}
+	panic("function equals called with invalid arguments")
 }
 func (f FormulaAction) StartWith(values ...any) interface{} {
 	key := values[0].(string)
@@ -114,12 +139,19 @@ func (f FormulaAction) EndWith(values ...any) interface{} {
 	return float64(0)
 }
 func (f FormulaAction) Different(values ...any) interface{} {
-	key := values[0].(string)
-	str := values[1].(string)
-	if key == str {
-		return float64(0)
+	if len(values) == 0 {
+		panic("function equals called with no arguments")
 	}
-	return float64(1)
+	if reflect.TypeOf(values[0]).Kind() == reflect.Slice && len(values[0].([]interface{})) == 2 {
+		array := values[0].([]interface{})
+		key := fmt.Sprintf("%v", array[0])
+		str := fmt.Sprintf("%v", array[1])
+		if key == str {
+			return float64(0)
+		}
+		return float64(1)
+	}
+	panic("function equals called with invalid arguments")
 }
 
 /*-----------------String---------------------------*/

@@ -32,7 +32,7 @@ type Expression struct {
 	//函数类型
 	FunctionType FunctionType
 	//若表达式为函数,则可以调用此委托来计算函数输出值,计算时根据函数枚举值来确定要转换的函数类型
-	Function     interface{}
+	Function     func(FormulaAction, ...any) interface{}
 	FunctionName string
 	//子表达式
 	ExpressionChildren []*Expression
@@ -42,8 +42,13 @@ func CreateExpression(expressionStr string) (*Expression, error) {
 	if len(expressionStr) == 0 {
 		return nil, fmt.Errorf("表达式不能为空")
 	}
+	expStr := strings.Replace(expressionStr, "||", "|", -1)
+	expStr = strings.Replace(expStr, "\\\\", "\\", -1)
+	expStr = strings.Replace(expStr, "&&", "&", -1)
+	expStr = strings.Replace(expStr, "==", "=", -1)
+	expStr = strings.Trim(expStr, " ")
 	exp := Expression{
-		SourceExpressionString: expressionStr,
+		SourceExpressionString: expStr,
 		DataString:             "",
 	}
 	defer func() {
@@ -272,12 +277,11 @@ func parse(exp *Expression) {
 				//'' 或者 "" 实际上应该认作数据类型
 				matchScope = findDataEnd(currentChar, exp.SourceExpressionString, index)
 				tempStr := fmt.Sprintf("%c%s%c", currentChar, matchScope.ChildrenExpressionString, endTag)
-				var dataExp, err = CreateExpression(tempStr)
-				if err != nil {
-					panic(err)
+				dataExp := &Expression{
+					ElementType:            ElementData,
+					SourceExpressionString: tempStr,
+					DataString:             matchScope.ChildrenExpressionString,
 				}
-				dataExp.DataString = matchScope.ChildrenExpressionString
-				dataExp.ElementType = ElementData
 				exp.ExpressionChildren = append(exp.ExpressionChildren, dataExp)
 				lastBlock = MatchModeData
 				index = matchScope.EndIndex
@@ -320,13 +324,14 @@ func parse(exp *Expression) {
 			//如果是函数，则匹配函数内的表达式,eg: [sum](****)
 			matchScope = findEnd('(', ')', exp.SourceExpressionString, matchScope.EndIndex+1)
 			functionStr += "(" + matchScope.ChildrenExpressionString + ")"
-			functionExp, _ := CreateExpression(functionStr)
-			functionExp.ElementType = ElementFunction
-			functionExp.FunctionType = executeType
-			functionExp.Function = function
-			functionExp.FunctionName = executeType.String()
-			functionExp.SourceExpressionString = functionStr
-			functionExp.DataString = matchScope.ChildrenExpressionString
+			functionExp := &Expression{
+				ElementType:            ElementFunction,
+				FunctionType:           executeType,
+				Function:               function,
+				FunctionName:           executeType.String(),
+				SourceExpressionString: functionStr,
+				DataString:             matchScope.ChildrenExpressionString,
+			}
 
 			exp.ExpressionChildren = append(exp.ExpressionChildren, functionExp)
 			var paramList = splitParamObject(matchScope.ChildrenExpressionString)
@@ -400,13 +405,11 @@ func splitParamObject(srcString string) []string {
 				continue
 			}
 			break
-		case '(':
-		case '[':
+		case '(', '[':
 			//封闭空间开始,提升层级
 			areaLevel++
 			break
-		case ')':
-		case ']':
+		case ')', ']':
 			//封闭空间结束,降低层级
 			areaLevel--
 			break
@@ -541,7 +544,7 @@ func getFullSymbol(exp string, startIndex int, matchMode MatchMode) string {
 	return result
 }
 
-func GetFunctionType(key string) (executeType FunctionType, function interface{}) {
+func GetFunctionType(key string) (executeType FunctionType, function func(FormulaAction, ...any) interface{}) {
 	key = strings.ToLower(key)
 	switch key {
 	case "sum":
@@ -641,11 +644,19 @@ func (e *Expression) Execute() interface{} {
 func executeChildren(exp *Expression) []interface{} {
 	var childrenResults []interface{}
 	if len(exp.ExpressionChildren) == 0 {
-		childrenResults = append(childrenResults, executeNode(exp))
+		v, err := exp.executeNode(exp)
+		if err != nil {
+			panic(err)
+		}
+		childrenResults = append(childrenResults, v)
 		return childrenResults
 	}
 	for _, childExp := range exp.ExpressionChildren {
-		childrenResults = append(childrenResults, executeNode(childExp))
+		v, err := exp.executeNode(childExp)
+		if err != nil {
+			panic(err)
+		}
+		childrenResults = append(childrenResults, v)
 	}
 
 	/*
@@ -663,124 +674,143 @@ func executeChildren(exp *Expression) []interface{} {
 	//计算逻辑与和逻辑或,顺序执行
 	for i, _ := range exp.Operators {
 		//非运算和负数特殊，它只需要一个操作数就可完成计算，其他运算符至少需要两个
-		var value = childrenResults[i+1]
-		if *exp.Operators[i] == Not || *exp.Operators[i] == Negative {
-			value = childrenResults[i]
+		value := childrenResults[i]
+		if *exp.Operators[i] != Not && *exp.Operators[i] != Negative {
+			value = childrenResults[i+1]
 		}
 		switch *exp.Operators[i] {
 		case None:
 			break
 		case And, Or:
-			result = 0
-			if result.(float64) != 0 && value.(float64) != 0 {
+			if InterfaceToFloat64(result) != 0 && InterfaceToFloat64(value) != 0 {
 				result = 1
+			} else {
+				result = 0
 			}
 			break
 		case Not:
-			result = 0
-			if value.(float64) == 0 {
+			if InterfaceToFloat64(value) == 0 {
 				result = 1
+			} else {
+				result = 0
 			}
 			break
 		case Plus:
-			result = result.(float64) + value.(float64)
+			result = InterfaceToFloat64(result) + InterfaceToFloat64(value)
 			break
 		case Subtract:
 			if isTime(result) && isTime(value) {
 				result = result.(time.Time).Sub(value.(time.Time))
 			} else {
-				result = result.(float64) - value.(float64)
+				result = InterfaceToFloat64(result) - InterfaceToFloat64(value)
 			}
 			break
 		case Multiply:
-			result = result.(float64) * value.(float64)
+			result = InterfaceToFloat64(result) * InterfaceToFloat64(value)
 			break
 		case Divide:
-			result = result.(float64) / value.(float64)
+			result = InterfaceToFloat64(result) / InterfaceToFloat64(value)
 			break
 		case Mod:
-			result = math.Mod(result.(float64), value.(float64))
+			result = math.Mod(InterfaceToFloat64(result), InterfaceToFloat64(value))
 			break
 		case GreaterThan:
 			//当前数据是否为日期，如果为日期则按日期比较方式
 			if !isTime(result) && !isTime(value) {
-				result = 0
-				if result.(float64) > value.(float64) {
+				if InterfaceToFloat64(result) > InterfaceToFloat64(value) {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
-				result = 0
 				if result.(time.Time).After(value.(time.Time)) {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 			break
 		case LessThan:
 			//当前数据是否为日期，如果为日期则按日期比较方式
 			if !isTime(result) && !isTime(value) {
-				result = 0
-				if result.(float64) < value.(float64) {
+				if InterfaceToFloat64(result) < InterfaceToFloat64(value) {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
 				result = 0
 				if result.(time.Time).Before(value.(time.Time)) {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 
 			break
 		case Equals:
-			result = 0
 			//当前数据是否为日期，如果为日期则按日期比较方式
 			if !isTime(result) && !isTime(value) {
 				if result == value {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
 				if result.(time.Time) == value.(time.Time) {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 			break
 		case UnEquals:
-			result = 0
 			if !isTime(result) && !isTime(value) {
-				if result.(float64) != value.(float64) {
+				if InterfaceToFloat64(result) != InterfaceToFloat64(value) {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
 				if result.(time.Time) == value.(time.Time) {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 			break
 		case GreaterThanOrEquals:
-			result = 0
 			if !isTime(result) && !isTime(value) {
-				if result.(float64) >= value.(float64) {
+				if InterfaceToFloat64(result) >= InterfaceToFloat64(value) {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
 				if result.(time.Time).After(value.(time.Time)) || result == value {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 			break
 		case LessThanOrEquals:
-			result = 0
 			if !isTime(result) && !isTime(value) {
-				if result.(float64) <= value.(float64) {
+				if InterfaceToFloat64(result) <= InterfaceToFloat64(value) {
 					result = 1
+				} else {
+					result = 0
 				}
 			} else {
 				if result.(time.Time).Before(value.(time.Time)) || result == value {
 					result = 1
+				} else {
+					result = 0
 				}
 			}
 			break
 		case Negative:
-			result = value.(float64) * -1
+			result = InterfaceToFloat64(value) * -1
 			break
 		default:
 			break
@@ -791,8 +821,99 @@ func executeChildren(exp *Expression) []interface{} {
 	return childrenResults
 }
 
-func executeNode(expChild *Expression) interface{} {
-	return nil
+func (e *Expression) executeNode(childExp *Expression) (interface{}, error) {
+	switch childExp.ElementType {
+	case ElementExpression:
+		return childExp.Execute(), nil
+
+	case ElementData:
+		return convert2ObjectValue(childExp.RealityString), nil
+
+	case ElementFunction:
+		if childExp.Function == nil {
+			return nil, fmt.Errorf("at %s: 不存在函数实例 %v", e.SourceExpressionString, childExp.FunctionType)
+		}
+
+		var result interface{} = 0.0
+		switch childExp.FunctionType {
+		case FunctionNone:
+			result = childExp.Function(FormulaAction{})
+
+		// 集合函数(参数不固定)
+		case FunctionSum, FunctionAvg:
+			var paramList []interface{}
+			if e.countNonDataChildren(childExp) != 0 {
+				for _, child := range childExp.ExpressionChildren {
+					childrenResults := executeChildren(child)
+					paramList = append(paramList, childrenResults...)
+				}
+			} else {
+				if childExp.RealityString == "" {
+					return nil, fmt.Errorf("at %s: 函数 %v 形参 %s 映射到实参 %s 错误",
+						e.SourceExpressionString, childExp.FunctionType, childExp.DataString, childExp.RealityString)
+				}
+				dataArray := strings.Split(childExp.RealityString, ",")
+				for _, item := range dataArray {
+					paramList = append(paramList, item)
+				}
+			}
+			return childExp.Function(FormulaAction{}, paramList...), nil
+
+		// 固定参数函数
+		case FunctionCustomer, FunctionEDate, FunctionEoDate,
+			FunctionNowTime, FunctionTimeToString, FunctionRound,
+			FunctionContains, FunctionContainsExcept, FunctionEquals,
+			FunctionStartWith, FunctionEndWith, FunctionDifferent,
+			FunctionDays, FunctionHours, FunctionMinutes,
+			FunctionSeconds, FunctionMillSeconds:
+
+			var paramsList []interface{}
+			if e.countNonDataChildren(childExp) != 0 {
+				for _, child := range childExp.ExpressionChildren {
+					childrenResults := executeChildren(child)
+					paramsList = append(paramsList, childrenResults...)
+				}
+			} else {
+				if childExp.RealityString != "" {
+					items := strings.Split(childExp.RealityString, ",")
+					for _, item := range items {
+						paramsList = append(paramsList, item)
+					}
+				}
+			}
+
+			res := childExp.Function(FormulaAction{}, paramsList)
+			return res, nil
+
+		default:
+			return nil, fmt.Errorf("at %s: 未知函数类型 %v", e.SourceExpressionString, childExp.FunctionType)
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("at %s: 未知表达式节点", e.SourceExpressionString)
+	}
+}
+
+// 辅助方法：计算非Data类型的子节点数量
+func (e *Expression) countNonDataChildren(exp *Expression) int {
+	count := 0
+	for _, child := range exp.ExpressionChildren {
+		if child.ElementType != ElementData {
+			count++
+		}
+	}
+	return count
+}
+
+// 辅助方法：转换字符串值为对象值
+func convert2ObjectValue(s string) interface{} {
+	// 实现字符串到适当类型的转换逻辑
+	// 例如尝试解析为int, float64, bool等
+	// 这里简化实现，实际应根据需要完善
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 /****************************************execute****************************************************/
