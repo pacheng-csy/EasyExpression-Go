@@ -12,7 +12,7 @@ func TestParse(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1), expression.InterfaceToFloat64(value))
 }
 
 func TestNegative(t *testing.T) {
@@ -20,7 +20,7 @@ func TestNegative(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, -6.0, value)
+	assert.Equal(t, float64(-6.0), expression.InterfaceToFloat64(value))
 }
 
 func TestLogic(t *testing.T) {
@@ -28,7 +28,7 @@ func TestLogic(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
 func TestMutipleFunction(t *testing.T) {
@@ -36,7 +36,7 @@ func TestMutipleFunction(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 16.0, value)
+	assert.Equal(t, float64(16.0), expression.InterfaceToFloat64(value))
 }
 
 func TestMutipleExpFunction(t *testing.T) {
@@ -44,7 +44,7 @@ func TestMutipleExpFunction(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 21.0, value)
+	assert.Equal(t, float64(21.0), expression.InterfaceToFloat64(value))
 }
 
 func TestFunctionParams(t *testing.T) {
@@ -52,7 +52,7 @@ func TestFunctionParams(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
 func TestUnEquals(t *testing.T) {
@@ -60,7 +60,7 @@ func TestUnEquals(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 0.0, value)
+	assert.Equal(t, float64(0.0), expression.InterfaceToFloat64(value))
 }
 
 func TestArithmetic(t *testing.T) {
@@ -68,7 +68,7 @@ func TestArithmetic(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 11.0, value)
+	assert.Equal(t, float64(11.0), expression.InterfaceToFloat64(value))
 }
 
 func TestString(t *testing.T) {
@@ -84,7 +84,7 @@ func TestString(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgumentWithDictionary(dic)
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
 func TestParams(t *testing.T) {
@@ -98,7 +98,7 @@ func TestParams(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgumentWithDictionary(dic)
 	value := exp.Execute()
-	assert.Equal(t, 11.0, value)
+	assert.Equal(t, float64(11.0), expression.InterfaceToFloat64(value))
 }
 
 func TestDateCompare(t *testing.T) {
@@ -109,7 +109,7 @@ func TestDateCompare(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgumentWithDictionary(dic)
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
 func TestDateMoreThen(t *testing.T) {
@@ -120,7 +120,7 @@ func TestDateMoreThen(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgumentWithDictionary(dic)
 	value := exp.Execute()
-	assert.Equal(t, 1.0, value)
+	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
 func TestDateLessThan(t *testing.T) {
@@ -131,7 +131,7 @@ func TestDateLessThan(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgumentWithDictionary(dic)
 	value := exp.Execute()
-	assert.Equal(t, 0.0, value)
+	assert.Equal(t, float64(0.0), expression.InterfaceToFloat64(value))
 }
 
 func TestEDATE(t *testing.T) {
@@ -171,7 +171,7 @@ func TestRound1(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 11.3, value)
+	assert.Equal(t, float64(11.3), expression.InterfaceToFloat64(value))
 }
 
 func TestRound2(t *testing.T) {
@@ -179,7 +179,7 @@ func TestRound2(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 11.3, value)
+	assert.Equal(t, float64(11.3), expression.InterfaceToFloat64(value))
 }
 
 func TestRound3(t *testing.T) {
@@ -187,7 +187,7 @@ func TestRound3(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 11.4, value)
+	assert.Equal(t, float64(11.4), expression.InterfaceToFloat64(value))
 }
 
 func TestTimeSpanDays(t *testing.T) {
@@ -195,7 +195,7 @@ func TestTimeSpanDays(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 5.0, value)
+	assert.Equal(t, float64(5.0), expression.InterfaceToFloat64(value))
 }
 
 func TestTimeSpanHours(t *testing.T) {
@@ -203,7 +203,7 @@ func TestTimeSpanHours(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 120.0, value)
+	assert.Equal(t, float64(120.0), expression.InterfaceToFloat64(value))
 }
 
 func TestTimeSpanMinutes(t *testing.T) {
@@ -211,7 +211,7 @@ func TestTimeSpanMinutes(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 7200.0, value)
+	assert.Equal(t, float64(7200.0), expression.InterfaceToFloat64(value))
 }
 
 func TestTimeSpanSeconds(t *testing.T) {
@@ -219,7 +219,7 @@ func TestTimeSpanSeconds(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 432000.0, value)
+	assert.Equal(t, float64(432000.0), expression.InterfaceToFloat64(value))
 }
 
 func TestTimeSpanMillSeconds(t *testing.T) {
@@ -227,7 +227,7 @@ func TestTimeSpanMillSeconds(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 432000000.0, value)
+	assert.Equal(t, float64(432000000.0), expression.InterfaceToFloat64(value))
 }
 
 func TestRoundAndTimeSpan(t *testing.T) {
@@ -235,5 +235,5 @@ func TestRoundAndTimeSpan(t *testing.T) {
 	exp, _ := expression.CreateExpression(expStr)
 	exp.LoadArgument()
 	value := exp.Execute()
-	assert.Equal(t, 0.2, value)
+	assert.Equal(t, float64(0.2), expression.InterfaceToFloat64(value))
 }
