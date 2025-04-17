@@ -112,7 +112,7 @@ func TestDateCompare(t *testing.T) {
 	assert.Equal(t, float64(1.0), expression.InterfaceToFloat64(value))
 }
 
-func TestDateMoreThen(t *testing.T) {
+func TestDateMoreThan(t *testing.T) {
 	expStr := "'2024-05-27' > a"
 	dic := map[string]string{
 		"a": "2024-05-26",
