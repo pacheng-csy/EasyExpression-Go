@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -739,7 +740,6 @@ func executeChildren(exp *Expression) []interface{} {
 					result = 0
 				}
 			} else {
-				result = 0
 				if result.(time.Time).Before(value.(time.Time)) {
 					result = 1
 				} else {
@@ -827,7 +827,7 @@ func (e *Expression) executeNode(childExp *Expression) (interface{}, error) {
 		return childExp.Execute(), nil
 
 	case ElementData:
-		return convert2ObjectValue(childExp.RealityString), nil
+		return convert2ObjectValue(childExp.RealityString, childExp.SourceExpressionString)
 
 	case ElementFunction:
 		if childExp.Function == nil {
@@ -905,15 +905,44 @@ func (e *Expression) countNonDataChildren(exp *Expression) int {
 	return count
 }
 
-// 辅助方法：转换字符串值为对象值
-func convert2ObjectValue(s string) interface{} {
-	// 实现字符串到适当类型的转换逻辑
-	// 例如尝试解析为int, float64, bool等
-	// 这里简化实现，实际应根据需要完善
-	if s == "" {
-		return nil
+func convert2ObjectValue(tag string, sourceExpressionString string) (interface{}, error) {
+	switch tag {
+	case "true":
+		return 1.0, nil
+	case "false":
+		return 0.0, nil
+	case "1":
+		return 1.0, nil
+	case "0":
+		return 0.0, nil
+	default:
+		if strings.HasSuffix(tag, "%") {
+			percentStr := strings.TrimSuffix(tag, "%")
+			percentResult, err := strconv.ParseFloat(percentStr, 64)
+			if err != nil {
+				return nil, fmt.Errorf("at %s: %s 不是数值类型", sourceExpressionString, tag)
+			}
+			return percentResult * 0.01, nil
+		}
+
+		if result, err := strconv.ParseFloat(tag, 64); err == nil {
+			return result, nil
+		}
+
+		if t, err := time.Parse(time.RFC3339, tag); err == nil {
+			return t, nil
+		}
+
+		// Try other common date formats if RFC3339 fails
+		if t, err := time.Parse("2006-01-02", tag); err == nil {
+			return t, nil
+		}
+		if t, err := time.Parse("2006-01-02 15:04:05", tag); err == nil {
+			return t, nil
+		}
+
+		return tag, nil
 	}
-	return s
 }
 
 /****************************************execute****************************************************/

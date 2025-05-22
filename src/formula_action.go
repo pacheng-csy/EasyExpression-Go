@@ -49,16 +49,16 @@ func (f FormulaAction) Avg(values ...any) interface{} {
 	return result / float64(len(values))
 }
 func (f FormulaAction) Round(values ...any) interface{} {
-	v, ok := values[0].(float64)
-	if !ok {
-		temp, err := strconv.ParseFloat(values[0].(string), 64)
-		if err != nil {
-			panic("function round error: " + values[0].(string) + "not a number")
-		}
-		v = temp
+	if len(values) == 0 {
+		panic("function Round called with no arguments")
 	}
-	accuracy, _ := strconv.ParseFloat(values[1].(string), 64)
-	mode, _ := strconv.ParseFloat(values[2].(string), 64)
+	if reflect.TypeOf(values[0]).Kind() != reflect.Slice || len(values[0].([]interface{})) != 3 {
+		panic("function Round called with invalid arguments")
+	}
+	array := values[0].([]interface{})
+	v := InterfaceToFloat64(array[0])
+	accuracy := InterfaceToFloat64(array[1])
+	mode := InterfaceToFloat64(array[2])
 	var delta = 5 / math.Pow(10, accuracy+1)
 	switch mode {
 	case -1:
@@ -140,7 +140,7 @@ func (f FormulaAction) EndWith(values ...any) interface{} {
 }
 func (f FormulaAction) Different(values ...any) interface{} {
 	if len(values) == 0 {
-		panic("function equals called with no arguments")
+		panic("function Different called with no arguments")
 	}
 	if reflect.TypeOf(values[0]).Kind() == reflect.Slice && len(values[0].([]interface{})) == 2 {
 		array := values[0].([]interface{})
@@ -151,7 +151,7 @@ func (f FormulaAction) Different(values ...any) interface{} {
 		}
 		return float64(1)
 	}
-	panic("function equals called with invalid arguments")
+	panic("function Different called with invalid arguments")
 }
 
 /*-----------------String---------------------------*/
@@ -159,45 +159,53 @@ func (f FormulaAction) Different(values ...any) interface{} {
 /*-----------------Time---------------------------*/
 
 func (f FormulaAction) EDate(values ...any) interface{} {
-	if date, ok := values[0].(time.Time); ok {
-		value, err := strconv.Atoi(values[1].(string))
-		format := values[2].(string)
-		if err != nil {
-			panic("date parse error")
-		}
+	if len(values) == 0 {
+		panic("function EDate called with no arguments")
+	}
+	if reflect.TypeOf(values[0]).Kind() != reflect.Slice || len(values[0].([]interface{})) != 3 {
+		panic("function EDate called with invalid arguments")
+	}
+	array := values[0].([]interface{})
+	if date, ok := array[0].(time.Time); ok {
+		value := InterfaceToInt(array[1])
+		format := array[2].(string)
 		switch format {
 		case "Y", "y":
-			date.AddDate(value, 0, 0)
+			date = date.AddDate(value, 0, 0)
 			return date
 		case "M":
-			date.AddDate(0, value, 0)
+			date = date.AddDate(0, value, 0)
 			return date
 		case "D", "d":
-			date.AddDate(0, 0, value)
+			date = date.AddDate(0, 0, value)
 			return date
 		case "H", "h":
-			date.Add(time.Hour * time.Duration(value))
+			date = date.Add(time.Hour * time.Duration(value))
 			return date
 		case "m":
-			date.Add(time.Minute * time.Duration(value))
+			date = date.Add(time.Minute * time.Duration(value))
 			return date
 		case "S", "s":
-			date.Add(time.Second * time.Duration(value))
+			date = date.Add(time.Second * time.Duration(value))
 			return date
 		case "F", "f":
-			date.Add(time.Millisecond * time.Duration(value))
+			date = date.Add(time.Millisecond * time.Duration(value))
 			return date
 		}
 	}
 	panic("date parse error")
 }
 func (f FormulaAction) EODate(values ...any) interface{} {
-	if date, ok := values[0].(time.Time); ok {
-		value, err := strconv.Atoi(values[1].(string))
-		format := values[2].(string)
-		if err != nil {
-			panic("date parse error")
-		}
+	if len(values) == 0 {
+		panic("function EODate called with no arguments")
+	}
+	if reflect.TypeOf(values[0]).Kind() != reflect.Slice || len(values[0].([]interface{})) != 3 {
+		panic("function EODate called with invalid arguments")
+	}
+	array := values[0].([]interface{})
+	if date, ok := array[0].(time.Time); ok {
+		value := InterfaceToInt(array[1])
+		format := array[2].(string)
 		newDate := date.AddDate(0, value, 0)
 		switch format {
 		case "S", "s":
@@ -215,8 +223,15 @@ func (f FormulaAction) NowTime(values ...any) interface{} {
 	return time.Now()
 }
 func (f FormulaAction) TimeToString(values ...any) interface{} {
-	if date, ok := values[0].(time.Time); ok {
-		value := values[1].(string)
+	if len(values) == 0 {
+		panic("function TimeToString called with no arguments")
+	}
+	if reflect.TypeOf(values[0]).Kind() != reflect.Slice || len(values[0].([]interface{})) != 2 {
+		panic("function TimeToString called with invalid arguments")
+	}
+	array := values[0].([]interface{})
+	if date, ok := array[0].(time.Time); ok {
+		value := array[1].(string)
 		formatting := "2006-01-02 15:04:05"
 		if len(value) > 1 {
 			formatting = value
@@ -238,31 +253,31 @@ func (f FormulaAction) TimeToString(values ...any) interface{} {
 }
 
 func (f FormulaAction) Days(values ...any) interface{} {
-	if duration, ok := values[0].(time.Duration); ok {
+	if duration, ok := values[0].([]interface{})[0].(time.Duration); ok {
 		return duration.Hours() / 24
 	}
 	panic("Days execute error")
 }
 func (f FormulaAction) Hours(values ...any) interface{} {
-	if duration, ok := values[0].(time.Duration); ok {
+	if duration, ok := values[0].([]interface{})[0].(time.Duration); ok {
 		return duration.Hours()
 	}
 	panic("Hours execute error")
 }
 func (f FormulaAction) Minutes(values ...any) interface{} {
-	if duration, ok := values[0].(time.Duration); ok {
+	if duration, ok := values[0].([]interface{})[0].(time.Duration); ok {
 		return duration.Minutes()
 	}
 	panic("Minutes execute error")
 }
 func (f FormulaAction) Seconds(values ...any) interface{} {
-	if duration, ok := values[0].(time.Duration); ok {
+	if duration, ok := values[0].([]interface{})[0].(time.Duration); ok {
 		return duration.Seconds()
 	}
 	panic("Seconds execute error")
 }
 func (f FormulaAction) MillSeconds(values ...any) interface{} {
-	if duration, ok := values[0].(time.Duration); ok {
+	if duration, ok := values[0].([]interface{})[0].(time.Duration); ok {
 		return duration.Milliseconds()
 	}
 	panic("MillSeconds execute error")

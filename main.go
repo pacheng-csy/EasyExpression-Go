@@ -23,7 +23,7 @@ func main() {
 		{"TestString", test.TestString},
 		{"TestParams", test.TestParams},
 		{"TestDateCompare", test.TestDateCompare},
-		{"TestDateMoreThen", test.TestDateMoreThen},
+		{"TestDateMoreThan", test.TestDateMoreThan},
 		{"TestDateLessThan", test.TestDateLessThan},
 		{"TestEDATE", test.TestEDATE},
 		{"TestEODateStart", test.TestEODateStart},
