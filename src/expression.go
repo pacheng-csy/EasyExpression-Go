@@ -191,6 +191,7 @@ func (e *Expression) getChildrenAllParams(parent *Expression) []KeyValuePairElem
 
 func tryParse(exp *Expression) bool {
 	parse(exp)
+	exp.RebuildExpression()
 	return true
 }
 
@@ -508,11 +509,9 @@ func convertOperator(currentChar string) Operator {
 		return Equals
 	case "!=":
 		return UnEquals
-	case "<=":
-	case "=<":
+	case "<=", "=<":
 		return LessThanOrEquals
-	case ">=":
-	case "=>":
+	case ">=", "=>":
 		return GreaterThanOrEquals
 	}
 	return None
@@ -682,8 +681,15 @@ func executeChildren(exp *Expression) []interface{} {
 		switch *exp.Operators[i] {
 		case None:
 			break
-		case And, Or:
+		case And:
 			if InterfaceToFloat64(result) != 0 && InterfaceToFloat64(value) != 0 {
+				result = 1
+			} else {
+				result = 0
+			}
+			break
+		case Or:
+			if InterfaceToFloat64(result) != 0 || InterfaceToFloat64(value) != 0 {
 				result = 1
 			} else {
 				result = 0
@@ -983,26 +989,23 @@ func (e *Expression) RebuildExpression() {
 			startIndex := group[len(group)-1]
 			endIndex := group[0]
 
-			// 获取需要合并的子表达式
 			childCount := endIndex - startIndex + 2
-			children := make([]*Expression, childCount)
-			copy(children, e.ExpressionChildren[startIndex:startIndex+childCount])
+			children := e.getNewChildren(startIndex, childCount)
 
 			// 获取对应的操作符
 			childrenOperators := make([]*Operator, len(group))
 			for i, idx := range group {
 				childrenOperators[i] = e.Operators[idx]
 			}
-
 			// 合并为新表达式
 			newExp := buildChildren(children, childrenOperators)
-
 			// 在原集合中删除合并的部分并插入新表达式
 			e.ExpressionChildren = append(
 				e.ExpressionChildren[:startIndex],
-				append([]*Expression{&newExp}, e.ExpressionChildren[startIndex+childCount:]...)...,
+				append([]*Expression{&newExp}, e.ExpressionChildren[startIndex:]...)...,
 			)
-
+			// 从e.ExpressionChildren中删除children
+			removeElementsInCollection(&e.ExpressionChildren, children)
 			// 删除已合并的操作符（需要从后往前删除以避免索引变化）
 			sort.Sort(sort.Reverse(sort.IntSlice(group)))
 			for _, idx := range group {
@@ -1010,6 +1013,30 @@ func (e *Expression) RebuildExpression() {
 			}
 		}
 	}
+}
+
+func removeElementsInCollection(srcExps *[]*Expression, removeList []*Expression) {
+	//遍历srcExps,移除存在于removeList中的元素
+	for i := len(*srcExps) - 1; i >= 0; i-- {
+		for j := len(removeList) - 1; j >= 0; j-- {
+			if (*srcExps)[i] == removeList[j] {
+				removeList = append(removeList[:j], removeList[j+1:]...)
+				*srcExps = append((*srcExps)[:i], (*srcExps)[i+1:]...)
+				break
+			}
+		}
+	}
+}
+
+func (e *Expression) getNewChildren(startIndex int, count int) []*Expression {
+	var newChildren []*Expression
+	for i := startIndex; i < len(e.ExpressionChildren); i++ {
+		if count <= i-startIndex {
+			return newChildren
+		}
+		newChildren = append(newChildren, e.ExpressionChildren[i])
+	}
+	return newChildren
 }
 
 func buildChildren(expressions []*Expression, operators []*Operator) Expression {
